@@ -1,0 +1,56 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+//Shaders really like structures divisible by 128 bits, that's why our struct has dummy variables.
+//https://developer.nvidia.com/content/understanding-structured-buffer-performance
+//https://developer.nvidia.com/content/redundancy-and-latency-structured-buffer-use
+
+//Each float in HLSL is 32bits (4bytes)
+//https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-scalar
+
+struct particle{
+    float x;
+    float y;
+    float z;
+    float dummy;
+};
+
+// RandomWrite Structured Buffer
+RWStructuredBuffer<particle> particleBuffer;
+uniform float time;
+
+float rand1dTo1d(float3 value, float mutator = 0.546f){
+	float random = frac(sin(value + mutator) * 143758.5453f);
+	return random;
+}
+
+float3 rand1dTo3d(float value){
+    return float3(
+        rand1dTo1d(value, 3.9812f),
+        rand1dTo1d(value, 7.1536f),
+        rand1dTo1d(value, 5.7241f)
+    );
+}
+
+//because forces are being modified in parallel by different threads. 
+//So, we need to use protected writing operation to avoid data loss. 
+//But protected data access functions only work for int and uint values.
+// https://www.reddit.com/r/Unity3D/comments/7ppldz/physics_simulation_on_gpu_with_compute_shader_in/
+[numthreads(32,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //generate 2 orthogonal vectors
+    float3 baseDir = normalize(rand1dTo3d(id.x) - 0.5) * (rand1dTo1d(id.x)*0.9+0.1);
+    float3 orthogonal = normalize(cross(baseDir, rand1dTo3d(id.x + 7.1393) - 0.5)) * (rand1dTo1d(id.x+3.7443)*0.9+0.1);
+    //scale the time and give it a random offset
+    float scaledTime = time * 2 + rand1dTo1d(id.x) * 712.131234;
+    //calculate a vector based on vectors
+    float3 dir = baseDir * sin(scaledTime) + orthogonal * cos(scaledTime);
+    particleBuffer[id.x].x = dir.x * 20;
+    particleBuffer[id.x].y = dir.y * 20;
+    particleBuffer[id.x].z = dir.z * 20;
+
+    // particleBuffer[id.x].x = particleBuffer[id.x].x + 0.001f;
+    // particleBuffer[id.x].y = particleBuffer[id.x].y + 0.001f;
+    // particleBuffer[id.x].z = particleBuffer[id.x].z + 0.001f;
+}

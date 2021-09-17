@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 8e9d75f478e422441ae290fd6de59dcc
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - shader: {fileID: 7200000, guid: 74ea80cea36976d438cd92c95b174cf4, type: 3}
+  - material: {fileID: 2100000, guid: 5bfd68d82ee092a49bb76cd284a46654, type: 2}
+  - mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
