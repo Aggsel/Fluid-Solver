@@ -25,7 +25,11 @@ Shader "Unlit/ParticleShader"
                 float x;
                 float y;
                 float z;
+                float dx;
+                float dy;
+                float dz;
                 float dummy;
+                float dummy2;
             };
 
             struct v2f {

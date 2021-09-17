@@ -12,12 +12,19 @@ struct particle{
     float x;
     float y;
     float z;
+    float dx;
+    float dy;
+    float dz;
     float dummy;
+    float dummy2;
 };
 
 // RandomWrite Structured Buffer
 RWStructuredBuffer<particle> particleBuffer;
-uniform float time;
+uniform float timeDelta;
+uniform float4 bounds;
+uniform float airResistance;
+uniform float initialVelocity;
 
 float rand1dTo1d(float3 value, float mutator = 0.546f){
 	float random = frac(sin(value + mutator) * 143758.5453f);
@@ -39,18 +46,20 @@ float3 rand1dTo3d(float value){
 [numthreads(128,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    //generate 2 orthogonal vectors
-    float3 baseDir = normalize(rand1dTo3d(id.x) - 0.5) * (rand1dTo1d(id.x)*0.9+0.1);
-    float3 orthogonal = normalize(cross(baseDir, rand1dTo3d(id.x + 7.1393) - 0.5)) * (rand1dTo1d(id.x+3.7443)*0.9+0.1);
-    //scale the time and give it a random offset
-    float scaledTime = time * 2 + rand1dTo1d(id.x) * 712.131234;
-    //calculate a vector based on vectors
-    float3 dir = baseDir * sin(scaledTime) + orthogonal * cos(scaledTime);
-    particleBuffer[id.x].x = dir.x * 20;
-    particleBuffer[id.x].y = dir.y * 20;
-    particleBuffer[id.x].z = dir.z * 20;
+    float3 currentPosition = float3(particleBuffer[id.x].x, particleBuffer[id.x].y, particleBuffer[id.x].z);
+    float3 previousPosition = float3(particleBuffer[id.x].dx, particleBuffer[id.x].dy, particleBuffer[id.x].dz);
+    float3 tempPosition = currentPosition;
+    float inverseMass = 1;
+    float3 accumulatedForces = float3(0, -9.82, 0);
 
-    // particleBuffer[id.x].x = particleBuffer[id.x].x + 0.001f;
-    // particleBuffer[id.x].y = particleBuffer[id.x].y + 0.001f;
-    // particleBuffer[id.x].z = particleBuffer[id.x].z + 0.001f;
+    //Verlet integration with a variable timestep does not really work. TODO: Another integration method is needed.
+    currentPosition = (2 - airResistance) * currentPosition - (1-airResistance)*previousPosition + accumulatedForces * (timeDelta * timeDelta * inverseMass);
+    
+    particleBuffer[id.x].dx = tempPosition.x;
+    particleBuffer[id.x].dy = tempPosition.y;
+    particleBuffer[id.x].dz = tempPosition.z;
+
+    particleBuffer[id.x].x = currentPosition.x;
+    particleBuffer[id.x].y = currentPosition.y;
+    particleBuffer[id.x].z = currentPosition.z;
 }

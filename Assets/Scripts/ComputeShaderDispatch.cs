@@ -4,10 +4,17 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 public struct particle{
+    //If changed, remember to update the shader, the buffer size
+    //and keep it divisible by 128.
+    //https://developer.nvidia.com/content/understanding-structured-buffer-performance
     public float x;
     public float y;
     public float z;
+    public float dx;
+    public float dy;
+    public float dz;
     float dummy;
+    float dummy2;
 }
 
 public class ComputeShaderDispatch : MonoBehaviour{
@@ -17,6 +24,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
     //Buffers to store our particle data.
     [SerializeField] private particle[] particles;  //On the CPU
     ComputeBuffer particleBuffer;                   //On the GPU
+    // ComputeBuffer previousBuffer;                   //On the GPU
 
     private int CSMainKernel;
 
@@ -26,6 +34,10 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
     [Range(1, 65534)]
     [SerializeField] private int particleCount = 1024;
+
+    [Header("Bounding Box")]
+    [SerializeField] private Vector3 bounds;
+    [SerializeField] private float airResistance = 0.02f;
 
     //Buffers that contain data about our particle mesh.
     ComputeBuffer meshTriangles;
@@ -39,6 +51,15 @@ public class ComputeShaderDispatch : MonoBehaviour{
         }
         particles = new particle[particleCount];
 
+        for (int i = 0; i < particles.Length; i++){
+            particles[i].x = Random.Range(-bounds.x, bounds.x);
+            particles[i].y = Random.Range(-bounds.y, bounds.y);
+            particles[i].z = Random.Range(-bounds.z, bounds.z);
+            particles[i].dx = particles[i].x;
+            particles[i].dy = particles[i].dy;
+            particles[i].dz = particles[i].dz;
+        }
+
         InitializeBuffers();
     }
 
@@ -46,10 +67,14 @@ public class ComputeShaderDispatch : MonoBehaviour{
         CSMainKernel = shader.FindKernel("CSMain");
 
         //ComputeBuffer(count, stride) (number of elements, size of one element)
-        //Here we're creating a compute buffer with particles length, each particle struct contains 4 floats (each float being 4 bytes).
-        particleBuffer = new ComputeBuffer(particles.Length, sizeof(float)*4);
+        //Here we're creating a compute buffer with particles length, each particle struct contains 8 floats.
+        particleBuffer = new ComputeBuffer(particles.Length, sizeof(float)*8);
         particleBuffer.SetData(particles);
+
         shader.SetBuffer(CSMainKernel, "particleBuffer", particleBuffer);
+        shader.SetVector("bounds", new Vector4(bounds.x, bounds.y, bounds.z, 0));
+        shader.SetFloat("airResistance", airResistance);
+
         particleMaterial.SetBuffer("particles", particleBuffer);
 
         Vector3[] vertices = particleMesh.vertices;
@@ -70,13 +95,14 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
     private void DisposeBuffers(){
         particleBuffer.Dispose();
+        // previousBuffer.Dispose();
         meshTriangles.Dispose();
         meshVertices.Dispose();
         meshNormals.Dispose();
     }
 
     void Update(){
-        shader.SetFloat("time", Time.time);
+        shader.SetFloat("timeDelta", Time.deltaTime);
         //Basicly "run" the CSMain function (kernel) in the compute shader using 16x16x1 threads.
         //Keep in mind that this is multiplied with the numthreads in the actual shader file.
         //The total number of threads must be more than the number of particles in our simulation, since
