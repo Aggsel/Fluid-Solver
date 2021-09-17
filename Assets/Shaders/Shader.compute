@@ -36,7 +36,7 @@ float3 rand1dTo3d(float value){
 //So, we need to use protected writing operation to avoid data loss. 
 //But protected data access functions only work for int and uint values.
 // https://www.reddit.com/r/Unity3D/comments/7ppldz/physics_simulation_on_gpu_with_compute_shader_in/
-[numthreads(32,1,1)]
+[numthreads(128,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     //generate 2 orthogonal vectors
