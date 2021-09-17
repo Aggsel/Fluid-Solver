@@ -1,0 +1,22 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct particle{
+    float x;
+    float y;
+    float z;
+    float dummy;
+};
+
+// RandomWrite Structured Buffer
+RWStructuredBuffer<particle> particleBuffer;
+
+//because forces are being modified in parallel by different threads. 
+//So, we need to use protected writing operation to avoid data loss. 
+//But protected data access functions only work for int and uint values.
+// https://www.reddit.com/r/Unity3D/comments/7ppldz/physics_simulation_on_gpu_with_compute_shader_in/
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // particleBuffer[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+}
