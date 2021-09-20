@@ -11,8 +11,7 @@ public struct particle{
     public float density;
     public float pressure;
     public float mass;
-    public Vector3 pressureForce;
-    public Vector3 viscosityForce;
+    public Vector3 forces;
     public Vector3 velocity;
 }
 
@@ -37,6 +36,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
     [Header("Spawning Volume")]
     [SerializeField] private Vector3 emissionBox;
+    [SerializeField] private Vector3 bounds;
 
     [Header("Fluid Properties")]
     [SerializeField] private float h = 1.0f;
@@ -75,7 +75,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
         //ComputeBuffer(count, stride) (number of elements, size of one element)
         //Here we're creating a compute buffer with particles length, each particle struct contains 8 floats.
-        particleBuffer = new ComputeBuffer(particles.Length, sizeof(float)*15);
+        particleBuffer = new ComputeBuffer(particles.Length, sizeof(float)*12);
         particleBuffer.SetData(particles);
 
         shader.SetBuffer(pressureKernel, "particleBuffer", particleBuffer);
@@ -85,7 +85,8 @@ public class ComputeShaderDispatch : MonoBehaviour{
         shader.SetFloat("h", h);
         shader.SetFloat("pressureConstant", pressureConstant);
         shader.SetFloat("referenceDensity", referenceDensity);
-        shader.SetVector("bounds", emissionBox);
+        shader.SetVector("bounds", bounds);
+        shader.SetInt("particleCount", particles.Length);
 
         particleMaterial.SetBuffer("particles", particleBuffer);
 
@@ -113,14 +114,20 @@ public class ComputeShaderDispatch : MonoBehaviour{
     }
 
     void Update(){
-        shader.SetFloat("deltaTime", Time.fixedDeltaTime);
+        shader.SetFloat("deltaTime", 0.016f);
+
+        shader.SetFloat("h", h);
+        shader.SetFloat("pressureConstant", pressureConstant);
+        shader.SetFloat("referenceDensity", referenceDensity);
+        
         //Basicly "run" the CSMain function (kernel) in the compute shader using 16x16x1 threads.
         //Keep in mind that this is multiplied with the numthreads in the actual shader file.
         //The total number of threads must be more than the number of particles in our simulation, since
         //we're directly manipulating only one particle per thread.
-        shader.Dispatch(pressureKernel, particleCount, 1, 1);
-        shader.Dispatch(accelerationKernel, particleCount, 1, 1);
-        shader.Dispatch(positionKernel, particleCount, 1, 1);
+        //We want this number to be as low as possible and the numthreads to be as large as possible.
+        shader.Dispatch(pressureKernel, particleCount/1024, 1, 1);
+        shader.Dispatch(accelerationKernel, particleCount/1024, 1, 1);
+        shader.Dispatch(positionKernel, particleCount/1024, 1, 1);
         
         //Instead of actually having game objects represent each particle, we just take the results from 
         //our compute shader and directly renders that data.

@@ -15,34 +15,28 @@ struct particle{
     float density;
     float pressure;
     float mass;
-    float3 pressureForce;
-    float3 viscosityForce;
+    float3 forces;
     float3 velocity;
 };
 
 // RandomWrite Structured Buffer
 RWStructuredBuffer<particle> particleBuffer;
-uniform float pressureConstant;
 uniform float h;
+uniform float pressureConstant;
 uniform float referenceDensity;
 uniform float deltaTime;
-
+uniform uint particleCount;
 uniform float3 bounds;
 
 //because forces are being modified in parallel by different threads. 
 //So, we need to use protected writing operation to avoid data loss. 
 //But protected data access functions only work for int and uint values.
 // https://www.reddit.com/r/Unity3D/comments/7ppldz/physics_simulation_on_gpu_with_compute_shader_in/
-[numthreads(128,1,1)]
+[numthreads(1024,1,1)]
 void CalculatePressure (uint3 id : SV_DispatchThreadID)
 {
     particleBuffer[id.x].density = 0;
-
     float3 currentPosition = particleBuffer[id.x].position;
-
-    uint particleCount = 0;
-    uint stride = 0;
-    particleBuffer.GetDimensions(particleCount, stride);
     const float smoothingConstant = (315.0f / (64.0f * 3.1415f * h));
 
     for(uint i = 0; i < particleCount; i++){
@@ -56,60 +50,72 @@ void CalculatePressure (uint3 id : SV_DispatchThreadID)
 
     particleBuffer[id.x].density = max(referenceDensity, particleBuffer[id.x].density);
     particleBuffer[id.x].pressure = pressureConstant * (particleBuffer[id.x].density - referenceDensity);
+
+    // particleBuffer[id.x].pressure = 2.0f;
+    // particleBuffer[id.x].density = 2.0f;
 }
 
-[numthreads(128,1,1)]
+[numthreads(1024,1,1)]
 void CalculateAcceleration (uint3 id : SV_DispatchThreadID)
 {
-    particleBuffer[id.x].pressureForce = 0;
-    particleBuffer[id.x].viscosityForce = 0;
-    const float spikySmoothingKernel = (-45 / (3.1415f * pow(h, 6)));
-
-    uint particleCount = 0;
-    uint stride = 0;
-    particleBuffer.GetDimensions(particleCount, stride);
+    particle currentParticle = particleBuffer[id.x];
+    const float spikySmoothingKernel = (-45 / (3.1415f * h * h * h * h * h * h));
 
     const float h2 = h*h;
     const float h3 = h*h*h;
 
-    const float3 position = particleBuffer[id.x].position;
+    const float3 position = currentParticle.position;
 
     for(uint i = 0; i < particleCount; i++){
-        const float3 diff = position - particleBuffer[i].position;
+        if(id.x == i)   //Do not calculate pressure force between self.
+                continue;
 
+        const float3 diff = position - particleBuffer[i].position;
         const float r2 = dot(diff, diff);
         const float r = sqrt(r2);
         const float r3 = r2 * r;
 
-
         if(r > 0 && r < h){ //Prevent division by 0.
-            if(id.x == i)   //Do not calculate pressure force between self.
-                continue;
             const float3 rNorm = normalize(diff);
             const float W = spikySmoothingKernel * (h - r) * (h - r);
-            float laplacianSmoothingKernel = -(r3 / (2 * h3)) + (r2 / h2) + (h / (2 * r)) - 1;
+            const float laplacianSmoothingKernel = -(r3 / (2 * h3)) + (r2 / h2) + (h / (2 * r)) - 1;
 
-            particleBuffer[id.x].pressureForce += (particleBuffer[i].mass / particleBuffer[id.x].mass) * ((particleBuffer[id.x].pressure + particleBuffer[i].pressure) / (2 * particleBuffer[id.x].density * particleBuffer[i].density)) * W * rNorm;
-            particleBuffer[id.x].viscosityForce += (particleBuffer[i].mass / particleBuffer[id.x].mass) * (1.0f / particleBuffer[i].density) * (particleBuffer[i].velocity - particleBuffer[id.x].velocity) * laplacianSmoothingKernel * rNorm;
+            currentParticle.forces += (particleBuffer[i].mass / currentParticle.mass) * ((currentParticle.pressure + particleBuffer[i].pressure) / (2 * currentParticle.density * particleBuffer[i].density)) * W * rNorm;
+            currentParticle.forces += (particleBuffer[i].mass / currentParticle.mass) * (1.0f / particleBuffer[i].density) * (particleBuffer[i].velocity - currentParticle.velocity) * laplacianSmoothingKernel * rNorm;
+            
+            //Alternativly this one, not sure if its more or less performant.
+            // currentParticle.forces += (particleBuffer[i].mass * rNorm * ((currentParticle.pressure + particleBuffer[i].pressure) * W - (2 * currentParticle.density * laplacianSmoothingKernel) * (currentParticle.velocity - particleBuffer[i].velocity))) / (2 * currentParticle.density * particleBuffer[i].density * currentParticle.mass);
         }
     }
 
-    particleBuffer[id.x].pressureForce *= -1;
-    particleBuffer[id.x].viscosityForce *= 0.018f;
+    currentParticle.forces *= -1 * 0.018f; //viscosity constant
+    particleBuffer[id.x].forces = currentParticle.forces; //Copy calculated forces back to the buffer.
 }
 
-[numthreads(128,1,1)]
+[numthreads(1024,1,1)]
 void UpdateParticlePositions (uint3 id : SV_DispatchThreadID)
 {
-    float3 gravity = float3(0, -9.82f, 0);
-    particleBuffer[id.x].velocity += deltaTime * ((particleBuffer[id.x].pressureForce + particleBuffer[id.x].viscosityForce) / particleBuffer[id.x].density + gravity);
+    const float3 gravity = float3(0, -9.82f, 0);
+    particleBuffer[id.x].velocity += deltaTime * (particleBuffer[id.x].forces / particleBuffer[id.x].density + gravity);
 
     //Well if this isn't the most fancy way to handle bounding box collisions then I don't know what is.
+    if((particleBuffer[id.x].position + deltaTime * particleBuffer[id.x].velocity).x < -bounds.x)
+        particleBuffer[id.x].velocity = reflect(particleBuffer[id.x].velocity, float3(1, 0, 0)) * 0.8f;
+    if((particleBuffer[id.x].position + deltaTime * particleBuffer[id.x].velocity).x > bounds.x)
+        particleBuffer[id.x].velocity = reflect(particleBuffer[id.x].velocity, float3(-1, 0, 0)) * 0.8f;
+
     if((particleBuffer[id.x].position + deltaTime * particleBuffer[id.x].velocity).y < -bounds.y)
-        particleBuffer[id.x].velocity = -particleBuffer[id.x].velocity * 0.8f;
+        particleBuffer[id.x].velocity = reflect(particleBuffer[id.x].velocity, float3(0, 1, 0)) * 0.8f;
+    if((particleBuffer[id.x].position + deltaTime * particleBuffer[id.x].velocity).y > bounds.y)
+        particleBuffer[id.x].velocity = reflect(particleBuffer[id.x].velocity, float3(0, -1, 0)) * 0.8f;
+
+    if((particleBuffer[id.x].position + deltaTime * particleBuffer[id.x].velocity).z < -bounds.z)
+        particleBuffer[id.x].velocity = reflect(particleBuffer[id.x].velocity, float3(0, 0, 1)) * 0.8f;
+    if((particleBuffer[id.x].position + deltaTime * particleBuffer[id.x].velocity).z > bounds.z)
+        particleBuffer[id.x].velocity = reflect(particleBuffer[id.x].velocity, float3(0, 0, -1)) * 0.8f;
+
 
     particleBuffer[id.x].position += deltaTime * particleBuffer[id.x].velocity;
     
-    
-    particleBuffer[id.x].pressureForce = 0;
+    particleBuffer[id.x].forces = 0;
 }

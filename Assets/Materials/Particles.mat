@@ -24,8 +24,9 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
-    m_Floats: []
+    m_Floats:
+    - _ParticleScale: 0.5
     m_Colors:
-    - _Color: {r: 2.9960785, g: 1.1450981, b: 0.29803923, a: 1}
-    - _LightDirection: {r: 1, g: 1, b: 0, a: 0}
+    - _Color: {r: 0.19840974, g: 0.7110715, b: 1.4339623, a: 1}
+    - _LightDirection: {r: 1, g: 0.5, b: -0.59, a: 0}
   m_BuildTextureStacks: []
