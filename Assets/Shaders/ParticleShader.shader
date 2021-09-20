@@ -22,14 +22,13 @@ Shader "Unlit/ParticleShader"
             float3 _LightDirection;
 
             struct particle{
-                float x;
-                float y;
-                float z;
-                float dx;
-                float dy;
-                float dz;
-                float dummy;
-                float dummy2;
+                float3 position;
+                float density;
+                float pressure;
+                float mass;
+                float3 pressureForce;
+                float3 viscosityForce;
+                float3 velocity;
             };
 
             struct v2f {
@@ -49,17 +48,20 @@ Shader "Unlit/ParticleShader"
                 int positionIndex = triangles[vertex_id];
                 float3 position = vertices[positionIndex];
                 //add sphere position
-                position += float3(particles[instance_id].x, particles[instance_id].y, particles[instance_id].z);
+                position += particles[instance_id].position;
                 //convert the vertex position from world space to clip space
                 o.pos = mul(UNITY_MATRIX_VP, float4(position, 1));
-                o.color = float4(normals[positionIndex], 1);
+                // o.color = float4(normals[positionIndex], 1);
+                o.color = float4(normalize(particles[positionIndex].velocity), 1.0f);
                 return o;
             }
 
             //the fragment shader function
             fixed4 frag(v2f i) : SV_TARGET{
                 //return the final color to be drawn on screen
-                float4 finalColor = dot(normalize(i.color), normalize(_LightDirection)) * _Color;
+                // float4 finalColor = dot(normalize(i.color), normalize(_LightDirection)) * _Color;
+                // float4 finalColor = i.color;
+                float4 finalColor = float4(0.3f, 0.3f, 0.5f, 1.0f);
                 return finalColor;
             }
 

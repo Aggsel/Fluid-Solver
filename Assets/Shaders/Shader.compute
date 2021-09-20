@@ -1,5 +1,7 @@
 // Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CSMain
+#pragma kernel CalculatePressure
+#pragma kernel CalculateAcceleration
+#pragma kernel UpdateParticlePositions
 
 //Shaders really like structures divisible by 128 bits, that's why our struct has dummy variables.
 //https://developer.nvidia.com/content/understanding-structured-buffer-performance
@@ -9,57 +11,105 @@
 //https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-scalar
 
 struct particle{
-    float x;
-    float y;
-    float z;
-    float dx;
-    float dy;
-    float dz;
-    float dummy;
-    float dummy2;
+    float3 position;
+    float density;
+    float pressure;
+    float mass;
+    float3 pressureForce;
+    float3 viscosityForce;
+    float3 velocity;
 };
 
 // RandomWrite Structured Buffer
 RWStructuredBuffer<particle> particleBuffer;
-uniform float timeDelta;
-uniform float4 bounds;
-uniform float airResistance;
-uniform float initialVelocity;
+uniform float pressureConstant;
+uniform float h;
+uniform float referenceDensity;
+uniform float deltaTime;
 
-float rand1dTo1d(float3 value, float mutator = 0.546f){
-	float random = frac(sin(value + mutator) * 143758.5453f);
-	return random;
-}
-
-float3 rand1dTo3d(float value){
-    return float3(
-        rand1dTo1d(value, 3.9812f),
-        rand1dTo1d(value, 7.1536f),
-        rand1dTo1d(value, 5.7241f)
-    );
-}
+uniform float3 bounds;
 
 //because forces are being modified in parallel by different threads. 
 //So, we need to use protected writing operation to avoid data loss. 
 //But protected data access functions only work for int and uint values.
 // https://www.reddit.com/r/Unity3D/comments/7ppldz/physics_simulation_on_gpu_with_compute_shader_in/
 [numthreads(128,1,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+void CalculatePressure (uint3 id : SV_DispatchThreadID)
 {
-    float3 currentPosition = float3(particleBuffer[id.x].x, particleBuffer[id.x].y, particleBuffer[id.x].z);
-    float3 previousPosition = float3(particleBuffer[id.x].dx, particleBuffer[id.x].dy, particleBuffer[id.x].dz);
-    float3 tempPosition = currentPosition;
-    float inverseMass = 1;
-    float3 accumulatedForces = float3(0, -9.82, 0);
+    particleBuffer[id.x].density = 0;
 
-    //Verlet integration with a variable timestep does not really work. TODO: Another integration method is needed.
-    currentPosition = (2 - airResistance) * currentPosition - (1-airResistance)*previousPosition + accumulatedForces * (timeDelta * timeDelta * inverseMass);
+    float3 currentPosition = particleBuffer[id.x].position;
+
+    uint particleCount = 0;
+    uint stride = 0;
+    particleBuffer.GetDimensions(particleCount, stride);
+    const float smoothingConstant = (315.0f / (64.0f * 3.1415f * h));
+
+    for(uint i = 0; i < particleCount; i++){
+        float3 diff = currentPosition - particleBuffer[i].position;
+        float r2 = dot(diff, diff);
+        if(r2 < h*h){
+            float W = smoothingConstant * pow(h*h - r2, 3);
+            particleBuffer[id.x].density += particleBuffer[i].mass * W;
+        }
+    }
+
+    particleBuffer[id.x].density = max(referenceDensity, particleBuffer[id.x].density);
+    particleBuffer[id.x].pressure = pressureConstant * (particleBuffer[id.x].density - referenceDensity);
+}
+
+[numthreads(128,1,1)]
+void CalculateAcceleration (uint3 id : SV_DispatchThreadID)
+{
+    particleBuffer[id.x].pressureForce = 0;
+    particleBuffer[id.x].viscosityForce = 0;
+    const float spikySmoothingKernel = (-45 / (3.1415f * pow(h, 6)));
+
+    uint particleCount = 0;
+    uint stride = 0;
+    particleBuffer.GetDimensions(particleCount, stride);
+
+    const float h2 = h*h;
+    const float h3 = h*h*h;
+
+    const float3 position = particleBuffer[id.x].position;
+
+    for(uint i = 0; i < particleCount; i++){
+        const float3 diff = position - particleBuffer[i].position;
+
+        const float r2 = dot(diff, diff);
+        const float r = sqrt(r2);
+        const float r3 = r2 * r;
+
+
+        if(r > 0 && r < h){ //Prevent division by 0.
+            if(id.x == i)   //Do not calculate pressure force between self.
+                continue;
+            const float3 rNorm = normalize(diff);
+            const float W = spikySmoothingKernel * (h - r) * (h - r);
+            float laplacianSmoothingKernel = -(r3 / (2 * h3)) + (r2 / h2) + (h / (2 * r)) - 1;
+
+            particleBuffer[id.x].pressureForce += (particleBuffer[i].mass / particleBuffer[id.x].mass) * ((particleBuffer[id.x].pressure + particleBuffer[i].pressure) / (2 * particleBuffer[id.x].density * particleBuffer[i].density)) * W * rNorm;
+            particleBuffer[id.x].viscosityForce += (particleBuffer[i].mass / particleBuffer[id.x].mass) * (1.0f / particleBuffer[i].density) * (particleBuffer[i].velocity - particleBuffer[id.x].velocity) * laplacianSmoothingKernel * rNorm;
+        }
+    }
+
+    particleBuffer[id.x].pressureForce *= -1;
+    particleBuffer[id.x].viscosityForce *= 0.018f;
+}
+
+[numthreads(128,1,1)]
+void UpdateParticlePositions (uint3 id : SV_DispatchThreadID)
+{
+    float3 gravity = float3(0, -9.82f, 0);
+    particleBuffer[id.x].velocity += deltaTime * ((particleBuffer[id.x].pressureForce + particleBuffer[id.x].viscosityForce) / particleBuffer[id.x].density + gravity);
+
+    //Well if this isn't the most fancy way to handle bounding box collisions then I don't know what is.
+    if((particleBuffer[id.x].position + deltaTime * particleBuffer[id.x].velocity).y < -bounds.y)
+        particleBuffer[id.x].velocity = -particleBuffer[id.x].velocity * 0.8f;
+
+    particleBuffer[id.x].position += deltaTime * particleBuffer[id.x].velocity;
     
-    particleBuffer[id.x].dx = tempPosition.x;
-    particleBuffer[id.x].dy = tempPosition.y;
-    particleBuffer[id.x].dz = tempPosition.z;
-
-    particleBuffer[id.x].x = currentPosition.x;
-    particleBuffer[id.x].y = currentPosition.y;
-    particleBuffer[id.x].z = currentPosition.z;
+    
+    particleBuffer[id.x].pressureForce = 0;
 }

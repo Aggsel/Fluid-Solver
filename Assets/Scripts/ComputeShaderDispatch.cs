@@ -7,14 +7,13 @@ public struct particle{
     //If changed, remember to update the shader, the buffer size
     //and keep it divisible by 128.
     //https://developer.nvidia.com/content/understanding-structured-buffer-performance
-    public float x;
-    public float y;
-    public float z;
-    public float dx;
-    public float dy;
-    public float dz;
-    float dummy;
-    float dummy2;
+    public Vector3 position;
+    public float density;
+    public float pressure;
+    public float mass;
+    public Vector3 pressureForce;
+    public Vector3 viscosityForce;
+    public Vector3 velocity;
 }
 
 public class ComputeShaderDispatch : MonoBehaviour{
@@ -24,9 +23,10 @@ public class ComputeShaderDispatch : MonoBehaviour{
     //Buffers to store our particle data.
     [SerializeField] private particle[] particles;  //On the CPU
     ComputeBuffer particleBuffer;                   //On the GPU
-    // ComputeBuffer previousBuffer;                   //On the GPU
 
-    private int CSMainKernel;
+    private int pressureKernel;
+    private int accelerationKernel;
+    private int positionKernel;
 
     [Header("Particles")]
     [SerializeField] Material particleMaterial;
@@ -35,9 +35,15 @@ public class ComputeShaderDispatch : MonoBehaviour{
     [Range(1, 65534)]
     [SerializeField] private int particleCount = 1024;
 
-    [Header("Bounding Box")]
-    [SerializeField] private Vector3 bounds;
-    [SerializeField] private float airResistance = 0.02f;
+    [Header("Spawning Volume")]
+    [SerializeField] private Vector3 emissionBox;
+
+    [Header("Fluid Properties")]
+    [SerializeField] private float h = 1.0f;
+    [SerializeField] private float pressureConstant = 250.0f;
+    [SerializeField] private float referenceDensity = 1.0f;
+    [SerializeField] private float defaultMass = 1.0f;
+    [SerializeField] private float defaultDensity = 1.0f;
 
     //Buffers that contain data about our particle mesh.
     ComputeBuffer meshTriangles;
@@ -52,28 +58,34 @@ public class ComputeShaderDispatch : MonoBehaviour{
         particles = new particle[particleCount];
 
         for (int i = 0; i < particles.Length; i++){
-            particles[i].x = Random.Range(-bounds.x, bounds.x);
-            particles[i].y = Random.Range(-bounds.y, bounds.y);
-            particles[i].z = Random.Range(-bounds.z, bounds.z);
-            particles[i].dx = particles[i].x;
-            particles[i].dy = particles[i].dy;
-            particles[i].dz = particles[i].dz;
+            particles[i].position.x = Random.Range(-emissionBox.x, emissionBox.x);
+            particles[i].position.y = Random.Range(-emissionBox.y, emissionBox.y);
+            particles[i].position.z = Random.Range(-emissionBox.z, emissionBox.z);
+            particles[i].mass = defaultMass;
+            particles[i].density = defaultDensity;
         }
 
         InitializeBuffers();
     }
 
     private void InitializeBuffers(){
-        CSMainKernel = shader.FindKernel("CSMain");
+        pressureKernel = shader.FindKernel("CalculatePressure");
+        accelerationKernel = shader.FindKernel("CalculateAcceleration");
+        positionKernel = shader.FindKernel("UpdateParticlePositions");
 
         //ComputeBuffer(count, stride) (number of elements, size of one element)
         //Here we're creating a compute buffer with particles length, each particle struct contains 8 floats.
-        particleBuffer = new ComputeBuffer(particles.Length, sizeof(float)*8);
+        particleBuffer = new ComputeBuffer(particles.Length, sizeof(float)*15);
         particleBuffer.SetData(particles);
 
-        shader.SetBuffer(CSMainKernel, "particleBuffer", particleBuffer);
-        shader.SetVector("bounds", new Vector4(bounds.x, bounds.y, bounds.z, 0));
-        shader.SetFloat("airResistance", airResistance);
+        shader.SetBuffer(pressureKernel, "particleBuffer", particleBuffer);
+        shader.SetBuffer(accelerationKernel, "particleBuffer", particleBuffer);
+        shader.SetBuffer(positionKernel, "particleBuffer", particleBuffer);
+
+        shader.SetFloat("h", h);
+        shader.SetFloat("pressureConstant", pressureConstant);
+        shader.SetFloat("referenceDensity", referenceDensity);
+        shader.SetVector("bounds", emissionBox);
 
         particleMaterial.SetBuffer("particles", particleBuffer);
 
@@ -95,19 +107,20 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
     private void DisposeBuffers(){
         particleBuffer.Dispose();
-        // previousBuffer.Dispose();
         meshTriangles.Dispose();
         meshVertices.Dispose();
         meshNormals.Dispose();
     }
 
     void Update(){
-        shader.SetFloat("timeDelta", Time.deltaTime);
+        shader.SetFloat("deltaTime", Time.fixedDeltaTime);
         //Basicly "run" the CSMain function (kernel) in the compute shader using 16x16x1 threads.
         //Keep in mind that this is multiplied with the numthreads in the actual shader file.
         //The total number of threads must be more than the number of particles in our simulation, since
         //we're directly manipulating only one particle per thread.
-        shader.Dispatch(CSMainKernel, particleCount, 1, 1);
+        shader.Dispatch(pressureKernel, particleCount, 1, 1);
+        shader.Dispatch(accelerationKernel, particleCount, 1, 1);
+        shader.Dispatch(positionKernel, particleCount, 1, 1);
         
         //Instead of actually having game objects represent each particle, we just take the results from 
         //our compute shader and directly renders that data.

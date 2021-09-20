@@ -333,9 +333,13 @@ MonoBehaviour:
   shader: {fileID: 7200000, guid: 74ea80cea36976d438cd92c95b174cf4, type: 3}
   particleMaterial: {fileID: 2100000, guid: 5bfd68d82ee092a49bb76cd284a46654, type: 2}
   particleMesh: {fileID: -2432090755550338912, guid: 80d8bedd62cc3384799915d11e643ab1, type: 3}
-  particleCount: 1200
-  bounds: {x: 2, y: 2, z: 2}
-  airResistance: 0.1
+  particleCount: 1500
+  emissionBox: {x: 10, y: 10, z: 10}
+  h: 1
+  pressureConstant: 20
+  referenceDensity: 20
+  defaultMass: 1
+  defaultDensity: 1
 --- !u!4 &1258269182
 Transform:
   m_ObjectHideFlags: 0
