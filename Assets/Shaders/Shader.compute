@@ -24,9 +24,12 @@ RWStructuredBuffer<particle> particleBuffer;
 uniform float h;
 uniform float pressureConstant;
 uniform float referenceDensity;
+uniform float viscosityConstant;
 uniform float deltaTime;
 uniform uint particleCount;
 uniform float3 bounds;
+uniform float3 externalForcePoint;
+uniform float externalForceMagnitude;
 
 //because forces are being modified in parallel by different threads. 
 //So, we need to use protected writing operation to avoid data loss. 
@@ -80,7 +83,9 @@ void CalculateAcceleration (uint3 id : SV_DispatchThreadID)
             const float W = spikySmoothingKernel * (h - r) * (h - r);
             const float laplacianSmoothingKernel = -(r3 / (2 * h3)) + (r2 / h2) + (h / (2 * r)) - 1;
 
+            //Pressure forces
             currentParticle.forces += (particleBuffer[i].mass / currentParticle.mass) * ((currentParticle.pressure + particleBuffer[i].pressure) / (2 * currentParticle.density * particleBuffer[i].density)) * W * rNorm;
+            //Viscosity forces
             currentParticle.forces += (particleBuffer[i].mass / currentParticle.mass) * (1.0f / particleBuffer[i].density) * (particleBuffer[i].velocity - currentParticle.velocity) * laplacianSmoothingKernel * rNorm;
             
             //Alternativly this one, not sure if its more or less performant.
@@ -88,15 +93,17 @@ void CalculateAcceleration (uint3 id : SV_DispatchThreadID)
         }
     }
 
-    currentParticle.forces *= -1 * 0.018f; //viscosity constant
+    currentParticle.forces *= -1 * viscosityConstant;
     particleBuffer[id.x].forces = currentParticle.forces; //Copy calculated forces back to the buffer.
 }
 
 [numthreads(1024,1,1)]
 void UpdateParticlePositions (uint3 id : SV_DispatchThreadID)
 {
-    const float3 gravity = float3(0, -9.82f, 0);
-    particleBuffer[id.x].velocity += deltaTime * (particleBuffer[id.x].forces / particleBuffer[id.x].density + gravity);
+    float3 externalForces = float3(0, -9.82f, 0);
+    externalForces += (float3(0,3,0) - particleBuffer[id.x].position) * externalForceMagnitude;
+
+    particleBuffer[id.x].velocity += deltaTime * (particleBuffer[id.x].forces / particleBuffer[id.x].density + externalForces);
 
     //Well if this isn't the most fancy way to handle bounding box collisions then I don't know what is.
     if((particleBuffer[id.x].position + deltaTime * particleBuffer[id.x].velocity).x < -bounds.x)
@@ -114,8 +121,6 @@ void UpdateParticlePositions (uint3 id : SV_DispatchThreadID)
     if((particleBuffer[id.x].position + deltaTime * particleBuffer[id.x].velocity).z > bounds.z)
         particleBuffer[id.x].velocity = reflect(particleBuffer[id.x].velocity, float3(0, 0, -1)) * 0.8f;
 
-
     particleBuffer[id.x].position += deltaTime * particleBuffer[id.x].velocity;
-    
     particleBuffer[id.x].forces = 0;
 }

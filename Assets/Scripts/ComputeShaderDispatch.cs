@@ -36,6 +36,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
     [Header("Spawning Volume")]
     [SerializeField] private Vector3 emissionBox;
+    [SerializeField] private Vector3 emissionBoxOffset;
     [SerializeField] private Vector3 bounds;
 
     [Header("Fluid Properties")]
@@ -44,6 +45,8 @@ public class ComputeShaderDispatch : MonoBehaviour{
     [SerializeField] private float referenceDensity = 1.0f;
     [SerializeField] private float defaultMass = 1.0f;
     [SerializeField] private float defaultDensity = 1.0f;
+    [SerializeField] private float viscosityConstant = 0.018f;
+    [SerializeField] private float externalForce = 5;
 
     //Buffers that contain data about our particle mesh.
     ComputeBuffer meshTriangles;
@@ -58,9 +61,9 @@ public class ComputeShaderDispatch : MonoBehaviour{
         particles = new particle[particleCount];
 
         for (int i = 0; i < particles.Length; i++){
-            particles[i].position.x = Random.Range(-emissionBox.x, emissionBox.x);
-            particles[i].position.y = Random.Range(-emissionBox.y, emissionBox.y);
-            particles[i].position.z = Random.Range(-emissionBox.z, emissionBox.z);
+            particles[i].position.x = Random.Range(-emissionBox.x, emissionBox.x) + emissionBoxOffset.x;
+            particles[i].position.y = Random.Range(-emissionBox.y, emissionBox.y) + emissionBoxOffset.y;
+            particles[i].position.z = Random.Range(-emissionBox.z, emissionBox.z) + emissionBoxOffset.z;
             particles[i].mass = defaultMass;
             particles[i].density = defaultDensity;
         }
@@ -85,6 +88,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
         shader.SetFloat("h", h);
         shader.SetFloat("pressureConstant", pressureConstant);
         shader.SetFloat("referenceDensity", referenceDensity);
+        shader.SetFloat("viscosityConstant", viscosityConstant);
         shader.SetVector("bounds", bounds);
         shader.SetInt("particleCount", particles.Length);
 
@@ -119,7 +123,12 @@ public class ComputeShaderDispatch : MonoBehaviour{
         shader.SetFloat("h", h);
         shader.SetFloat("pressureConstant", pressureConstant);
         shader.SetFloat("referenceDensity", referenceDensity);
-        
+        shader.SetFloat("viscosityConstant", viscosityConstant);
+        shader.SetVector("externalForcePoint", bounds);
+        if(Input.GetKey(KeyCode.Space))
+            shader.SetFloat("externalForceMagnitude", externalForce);
+        else
+            shader.SetFloat("externalForceMagnitude", 0);
         //Basicly "run" the CSMain function (kernel) in the compute shader using 16x16x1 threads.
         //Keep in mind that this is multiplied with the numthreads in the actual shader file.
         //The total number of threads must be more than the number of particles in our simulation, since
@@ -143,5 +152,13 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
     void OnDestroy(){
         DisposeBuffers();
+    }
+
+    void OnDrawGizmos(){
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireCube(transform.position, bounds*2);
+
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireCube(emissionBoxOffset, emissionBox*2);
     }
 }
