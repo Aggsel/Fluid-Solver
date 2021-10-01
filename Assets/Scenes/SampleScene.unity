@@ -333,16 +333,16 @@ MonoBehaviour:
   shader: {fileID: 7200000, guid: 74ea80cea36976d438cd92c95b174cf4, type: 3}
   particleMaterial: {fileID: 2100000, guid: 5bfd68d82ee092a49bb76cd284a46654, type: 2}
   particleMesh: {fileID: -2432090755550338912, guid: 80d8bedd62cc3384799915d11e643ab1, type: 3}
-  particleCount: 16384
+  particleCount: 8192
   emissionBox: {x: 2, y: 2, z: 2}
   emissionBoxOffset: {x: -3.73, y: -1.77, z: -3.57}
   bounds: {x: 6, y: 4, z: 6}
-  h: 0.5
+  h: 0.1
   pressureConstant: 6
   referenceDensity: 1
   defaultMass: 1
-  defaultDensity: 1
-  viscosityConstant: 0.018
+  defaultDensity: 8000
+  viscosityConstant: 0.0083
   externalForce: 5
 --- !u!4 &1258269182
 Transform:
