@@ -44,9 +44,11 @@ public class ComputeShaderDispatch : MonoBehaviour{
     [SerializeField] private float pressureConstant = 250.0f;
     [SerializeField] private float referenceDensity = 1.0f;
     [SerializeField] private float defaultMass = 1.0f;
-    [SerializeField] private float defaultDensity = 1.0f;
     [SerializeField] private float viscosityConstant = 0.018f;
     [SerializeField] private float externalForce = 5;
+    [SerializeField] private float deltaTime = 0.01f;
+
+    private float defaultDensity = 0.0f;
 
     //Buffers that contain data about our particle mesh.
     ComputeBuffer meshTriangles;
@@ -54,6 +56,10 @@ public class ComputeShaderDispatch : MonoBehaviour{
     ComputeBuffer meshNormals;
 
     void Start(){
+        Restart();
+    }
+
+    void Restart(){
         if(shader == null){
             Debug.LogError("Please attach a compute shader.", this);
             this.enabled = false;
@@ -89,6 +95,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
         shader.SetFloat("pressureConstant", pressureConstant);
         shader.SetFloat("referenceDensity", referenceDensity);
         shader.SetFloat("viscosityConstant", viscosityConstant);
+
         shader.SetVector("bounds", bounds);
         shader.SetInt("particleCount", particles.Length);
 
@@ -118,13 +125,25 @@ public class ComputeShaderDispatch : MonoBehaviour{
     }
 
     void Update(){
-        shader.SetFloat("deltaTime", 0.016f);
+        if(Input.GetKeyDown(KeyCode.Q)){
+            DisposeBuffers();
+            Restart();
+            return;
+        }
+
+        shader.SetFloat("deltaTime", deltaTime);
 
         shader.SetFloat("h", h);
         shader.SetFloat("pressureConstant", pressureConstant);
         shader.SetFloat("referenceDensity", referenceDensity);
         shader.SetFloat("viscosityConstant", viscosityConstant);
         shader.SetVector("externalForcePoint", bounds);
+
+        shader.SetFloat("poly6Constant", 315 / (64*Mathf.PI*Mathf.Pow(h,9)));
+        shader.SetFloat("spikyConstant", 15 / (Mathf.PI * Mathf.Pow(h, 6)));
+        shader.SetFloat("laplaceConstant", 45 / (Mathf.PI * Mathf.Pow(h, 6)));
+        shader.SetFloat("particleMass", defaultMass);
+
         if(Input.GetKey(KeyCode.Space))
             shader.SetFloat("externalForceMagnitude", externalForce);
         else
