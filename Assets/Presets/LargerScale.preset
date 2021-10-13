@@ -1,0 +1,139 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!181963792 &2655988077585873504
+Preset:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: LargerScale
+  m_TargetType:
+    m_NativeTypeID: 114
+    m_ManagedTypePPtr: {fileID: 11500000, guid: 8e9d75f478e422441ae290fd6de59dcc, type: 3}
+    m_ManagedTypeFallback: 
+  m_Properties:
+  - target: {fileID: 0}
+    propertyPath: m_Enabled
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: m_EditorHideFlags
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: m_EditorClassIdentifier
+    value: 
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: shader
+    value: 
+    objectReference: {fileID: 7200000, guid: 74ea80cea36976d438cd92c95b174cf4, type: 3}
+  - target: {fileID: 0}
+    propertyPath: obstacle
+    value: 
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: particleMaterial
+    value: 
+    objectReference: {fileID: 2100000, guid: 5bfd68d82ee092a49bb76cd284a46654, type: 2}
+  - target: {fileID: 0}
+    propertyPath: particleMesh
+    value: 
+    objectReference: {fileID: -2432090755550338912, guid: 80d8bedd62cc3384799915d11e643ab1, type: 3}
+  - target: {fileID: 0}
+    propertyPath: particleCount
+    value: 8192
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: emissionBox.x
+    value: 3
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: emissionBox.y
+    value: 4
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: emissionBox.z
+    value: 1.5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: emissionBoxOffset.x
+    value: -9
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: emissionBoxOffset.y
+    value: 4
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: emissionBoxOffset.z
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: bounds.x
+    value: 12
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: bounds.y
+    value: 5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: bounds.z
+    value: 1.5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: emissions.x
+    value: 7.5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: emissions.y
+    value: 10
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: emissions.z
+    value: 3.75
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: h
+    value: 0.4
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: pressureConstant
+    value: 108.2
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: referenceDensity
+    value: 91.5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: defaultMass
+    value: 0.1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: viscosityConstant
+    value: 0.0001
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: externalForce
+    value: 5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: deltaTime
+    value: 0.01
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: gravity.x
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: gravity.y
+    value: -10
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: gravity.z
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: dampening
+    value: 0.008
+    objectReference: {fileID: 0}
+  m_ExcludedProperties: []

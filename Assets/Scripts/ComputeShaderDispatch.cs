@@ -27,6 +27,8 @@ public class ComputeShaderDispatch : MonoBehaviour{
     private int accelerationKernel;
     private int positionKernel;
 
+    [SerializeField] private GameObject obstacle;
+
     [Header("Particles")]
     [SerializeField] Material particleMaterial;
     [SerializeField] Mesh particleMesh;
@@ -38,6 +40,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
     [SerializeField] private Vector3 emissionBox;
     [SerializeField] private Vector3 emissionBoxOffset;
     [SerializeField] private Vector3 bounds;
+    [SerializeField] private Vector3 emissions;
 
     [Header("Fluid Properties")]
     [SerializeField] private float h = 1.0f;
@@ -47,6 +50,8 @@ public class ComputeShaderDispatch : MonoBehaviour{
     [SerializeField] private float viscosityConstant = 0.018f;
     [SerializeField] private float externalForce = 5;
     [SerializeField] private float deltaTime = 0.01f;
+    [SerializeField] private Vector3 gravity;
+    [SerializeField] private float dampening;
 
     private float defaultDensity = 0.0f;
 
@@ -60,6 +65,10 @@ public class ComputeShaderDispatch : MonoBehaviour{
     }
 
     void Restart(){
+        emissions.x = emissionBox.x / h;
+        emissions.y = emissionBox.y / h;
+        emissions.z = emissionBox.z / h;
+
         if(shader == null){
             Debug.LogError("Please attach a compute shader.", this);
             this.enabled = false;
@@ -143,6 +152,14 @@ public class ComputeShaderDispatch : MonoBehaviour{
         shader.SetFloat("spikyConstant", 15 / (Mathf.PI * Mathf.Pow(h, 6)));
         shader.SetFloat("laplaceConstant", 45 / (Mathf.PI * Mathf.Pow(h, 6)));
         shader.SetFloat("particleMass", defaultMass);
+        shader.SetFloat("dampening", dampening);
+
+        shader.SetVector("gravity", gravity);
+
+        Vector3 planeNormal = obstacle.transform.forward;
+        shader.SetVector("planeNormal", planeNormal);
+        Vector3 planePoint = obstacle.transform.position;
+        shader.SetVector("planePoint", planePoint);
 
         if(Input.GetKey(KeyCode.Space))
             shader.SetFloat("externalForceMagnitude", externalForce);
