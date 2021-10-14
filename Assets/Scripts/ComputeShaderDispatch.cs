@@ -23,7 +23,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
     ComputeBuffer particleBuffer;
 
     private int pressureKernel;
-    private int accelerationKernel;
+    private int forcesKernel;
     private int positionKernel;
 
     // [SerializeField] private GameObject obstacle;
@@ -43,8 +43,8 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
     [Header("Fluid Parameters")]
     [SerializeField] private float h = 1.0f;
-    [SerializeField] private float pressureConstant = 250.0f;
-    [SerializeField] private float referenceDensity = 1.0f;
+    [SerializeField] private float gasConstant = 250.0f;
+    [SerializeField] private float restDensity = 1.0f;
     [SerializeField] private float particleMass = 0.1f;
     [SerializeField] private float viscosityConstant = 0.018f;
 
@@ -83,7 +83,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
     private void InitializeBuffers(){
         pressureKernel = shader.FindKernel("CalculatePressure");
-        accelerationKernel = shader.FindKernel("CalculateAcceleration");
+        forcesKernel = shader.FindKernel("CalculateForces");
         positionKernel = shader.FindKernel("UpdateParticlePositions");
 
         //ComputeBuffer(count, stride) (number of elements, size of one element)
@@ -93,14 +93,14 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
         //Make sure all 3 shader kernels and the material can access the particle buffer.
         shader.SetBuffer(pressureKernel, "particleBuffer", particleBuffer);
-        shader.SetBuffer(accelerationKernel, "particleBuffer", particleBuffer);
+        shader.SetBuffer(forcesKernel, "particleBuffer", particleBuffer);
         shader.SetBuffer(positionKernel, "particleBuffer", particleBuffer);
         particleMaterial.SetBuffer("particles", particleBuffer);
 
         //Initialize fluid specific parameters.
         shader.SetFloat("h", h);
-        shader.SetFloat("pressureConstant", pressureConstant);
-        shader.SetFloat("referenceDensity", referenceDensity);
+        shader.SetFloat("gasConstant", gasConstant);
+        shader.SetFloat("restDensity", restDensity);
         shader.SetFloat("viscosityConstant", viscosityConstant);
         
         //Initialize simulation parameters.
@@ -173,7 +173,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
 
         //Dispatch shaders, updating the particle positions in the buffers.
         shader.Dispatch(pressureKernel, particleCount/1024, 1, 1);
-        shader.Dispatch(accelerationKernel, particleCount/1024, 1, 1);
+        shader.Dispatch(forcesKernel, particleCount/1024, 1, 1);
         shader.Dispatch(positionKernel, particleCount/1024, 1, 1);
         
         //Instead of passing the results from our compute shaders back to the CPU when done, our material

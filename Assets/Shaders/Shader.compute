@@ -1,6 +1,6 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CalculatePressure
-#pragma kernel CalculateAcceleration
+#pragma kernel CalculateForces
 #pragma kernel UpdateParticlePositions
 
 #define PI 3.14159265
@@ -22,9 +22,9 @@ struct particle{
 
 // RandomWrite Structured Buffer
 RWStructuredBuffer<particle> particleBuffer;
-uniform float h;    //Core radius
-uniform float pressureConstant;
-uniform float referenceDensity;
+uniform float h;
+uniform float gasConstant;
+uniform float restDensity;
 uniform float viscosityConstant;
 uniform float deltaTime;
 uniform uint particleCount;
@@ -69,11 +69,11 @@ void CalculatePressure (uint3 id : SV_DispatchThreadID){
 
     //The pressure at the point of the particle can be calculated using Eq. 12 (Müller M, Charypar D & Gross M. 2003).
     particleBuffer[id.x].density = density;
-    particleBuffer[id.x].pressure = pressureConstant * (density - referenceDensity);
+    particleBuffer[id.x].pressure = gasConstant * (density - restDensity);
 }
 
 [numthreads(1024,1,1)]
-void CalculateAcceleration (uint3 id : SV_DispatchThreadID){
+void CalculateForces (uint3 id : SV_DispatchThreadID){
     const float h2 = h * h;
     const float h3 = h * h * h;
 
@@ -93,19 +93,16 @@ void CalculateAcceleration (uint3 id : SV_DispatchThreadID){
         float r2 = dot(diff, diff);
         float r = sqrt(r2);
 
-        if (r > 0 && r < h){
+        if (0 < r && r < h){
             float3 otherVelocity = particleBuffer[i].velocity;
             float otherDensity = particleBuffer[i].density;
             float otherPressure = particleBuffer[i].pressure;
 
-            float3 rNorm = normalize(diff);
-            float W = spikyConstant * (h - r) * (h - r); // spiky kernel smoothing function
+            float W_spiky = spikyConstant * (h - r) * (h - r) * (h - r); // spiky kernel smoothing function (Eq. 21)
+            pressureForce += particleMass * ((particleBuffer[id.x].pressure + otherPressure) / (2 * otherDensity)) * W_spiky * normalize(diff);
 
-            pressureForce += particleMass * ((particleBuffer[id.x].pressure + otherPressure) / (2 * particleBuffer[id.x].density * otherDensity)) * W * rNorm;
-
-            float r3 = r2 * r;
-            W = -(r3 / (2 * h3)) + (r2 / h2) + (h / (2 * r)) - 1; //Viscosity smoothing kernel.
-            viscosityForce += particleMass * (1.0f / otherDensity) * (otherVelocity - particleBuffer[id.x].velocity) * W * rNorm;
+            //Calculating the viscosity force (Eq. 14)
+            viscosityForce += particleMass * (otherVelocity - particleBuffer[id.x].velocity) / otherDensity * laplaceConstant * (h-r);
         }
     }
 
@@ -118,15 +115,17 @@ void CalculateAcceleration (uint3 id : SV_DispatchThreadID){
 void UpdateParticlePositions (uint3 id : SV_DispatchThreadID){
     particleBuffer[id.x].forces += gravity;
 
-    float d = length(externalForcePoint - particleBuffer[id.x].position);
-    particleBuffer[id.x].forces += (1.f-step(6.0f, d)) * (externalForcePoint - particleBuffer[id.x].position) * externalForceMagnitude;
+    float3 diff = externalForcePoint - particleBuffer[id.x].position;
+    float rSqrd = dot(diff, diff);
+    //Using smoothstep to smoothly reduce the force acting on each particle as a function of the distance between the particle and the cursor.
+    particleBuffer[id.x].forces += (1.f-smoothstep(20.0f, 30.0f, rSqrd)) * (externalForcePoint - particleBuffer[id.x].position) * externalForceMagnitude;
 
-    //Integrate
+    //Semi-implicit Euler integration.
     particleBuffer[id.x].velocity += particleBuffer[id.x].forces * deltaTime;
-    particleBuffer[id.x].position += particleBuffer[id.x].velocity * deltaTime;
     particleBuffer[id.x].velocity *= (1 - dampening);
+    particleBuffer[id.x].position += particleBuffer[id.x].velocity * deltaTime;
 
-    //Well if this isn't the most fancy way to handle bounding box collisions then I don't know what is.
+    //As a result of our bounding box being axis aligned, particle/bound collision is trivial to detect and correct.
     if(particleBuffer[id.x].position.x + h > bounds.x){
         particleBuffer[id.x].position.x = bounds.x - h;
         particleBuffer[id.x].velocity.x *= -0.6;

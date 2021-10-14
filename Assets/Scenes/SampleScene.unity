@@ -659,18 +659,18 @@ MonoBehaviour:
   particleMaterial: {fileID: 2100000, guid: 5bfd68d82ee092a49bb76cd284a46654, type: 2}
   particleMesh: {fileID: -2432090755550338912, guid: 80d8bedd62cc3384799915d11e643ab1, type: 3}
   particleCount: 8192
-  emissionBox: {x: 10.21, y: 4, z: 1.5}
-  emissionBoxOffset: {x: 0, y: 6, z: 0}
+  emissionBox: {x: 11, y: 8, z: 1.3}
+  emissionBoxOffset: {x: 0, y: 9, z: 0}
   bounds: {x: 12, y: 5, z: 1.5}
   h: 0.4
-  pressureConstant: 115
-  referenceDensity: 91.5
+  gasConstant: 16
+  restDensity: 1000
   particleMass: 0.1
-  viscosityConstant: 0.2
+  viscosityConstant: 2
   externalForceMagnitude: 5
   deltaTime: 0.01
   gravity: {x: 0, y: -10, z: 0}
-  dampening: 0.008
+  dampening: 0
 --- !u!4 &1258269182
 Transform:
   m_ObjectHideFlags: 0
