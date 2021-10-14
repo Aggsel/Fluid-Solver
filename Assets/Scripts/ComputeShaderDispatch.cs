@@ -39,6 +39,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
     [SerializeField] private Vector3 emissionBox;
     [SerializeField] private Vector3 emissionBoxOffset;
     [SerializeField] private Vector3 bounds;
+    private Vector3 actualBounds;
 
     [Header("Fluid Parameters")]
     [SerializeField] private float h = 1.0f;
@@ -144,6 +145,13 @@ public class ComputeShaderDispatch : MonoBehaviour{
             DisposeBuffers();
             Restart();
             return;
+        }
+
+        if(Input.GetKey(KeyCode.B)){
+            shader.SetVector("bounds", new Vector3(300,300,300));
+        }
+        else{
+            shader.SetVector("bounds", bounds);
         }
 
         //Handle ability to click and drag particles around the screen.
