@@ -16,7 +16,6 @@ struct particle{
     float3 position;
     float density;
     float pressure;
-    float mass;
     float3 forces;
     float3 velocity;
 };
@@ -47,10 +46,6 @@ float Poly6Kernel(float rSqrd, float h){
     if(rSqrd < hSqrd)
         return particleMass * poly6Constant * pow(hSqrd - rSqrd, 3);
     return 0;
-}
-
-float3 SpikyKernel(float3 r, float h){
-    return float3(0,0,0);
 }
 
 //because forces are being modified in parallel by different threads. 
@@ -86,6 +81,8 @@ void CalculateAcceleration (uint3 id : SV_DispatchThreadID){
     float3 pressureForce = float3(0,0,0);
     float3 viscosityForce = float3(0,0,0);
 
+
+    //TODO: Seperate out the kernelsmoothing to a function.
     for (uint i = 0; i < particleCount; i++){
         if(i == id.x)   //Make sure we don't calculate forces for between self.
             continue;
@@ -93,10 +90,10 @@ void CalculateAcceleration (uint3 id : SV_DispatchThreadID){
         float3 otherPos = particleBuffer[i].position;
 
         float3 diff = currentPos - otherPos;
-        float r2 = dot(diff, diff); // distance squared
+        float r2 = dot(diff, diff);
         float r = sqrt(r2);
 
-        if (r > 0 && r < h){     // avoid division by zero!
+        if (r > 0 && r < h){
             float3 otherVelocity = particleBuffer[i].velocity;
             float otherDensity = particleBuffer[i].density;
             float otherPressure = particleBuffer[i].pressure;
@@ -121,41 +118,43 @@ void CalculateAcceleration (uint3 id : SV_DispatchThreadID){
 void UpdateParticlePositions (uint3 id : SV_DispatchThreadID){
     particleBuffer[id.x].forces += gravity;
 
+    float d = length(externalForcePoint - particleBuffer[id.x].position);
+    particleBuffer[id.x].forces += (1.f-step(6.0f, d)) * (externalForcePoint - particleBuffer[id.x].position) * externalForceMagnitude;
+
     //Integrate
-    float particleSize = 0.01f;
     particleBuffer[id.x].velocity += particleBuffer[id.x].forces * deltaTime;
     particleBuffer[id.x].position += particleBuffer[id.x].velocity * deltaTime;
-    particleBuffer[id.x].velocity *= (1 - dampening); //Particle dampening.
+    particleBuffer[id.x].velocity *= (1 - dampening);
 
-    // //Well if this isn't the most fancy way to handle bounding box collisions then I don't know what is.
-    if(particleBuffer[id.x].position.x + particleSize > bounds.x){
-        particleBuffer[id.x].position.x = bounds.x - particleSize;
+    //Well if this isn't the most fancy way to handle bounding box collisions then I don't know what is.
+    if(particleBuffer[id.x].position.x + h > bounds.x){
+        particleBuffer[id.x].position.x = bounds.x - h;
         particleBuffer[id.x].velocity.x *= -0.6;
     }
-    if(particleBuffer[id.x].position.x - particleSize < -bounds.x){
-        particleBuffer[id.x].position.x = -bounds.x + particleSize;
+    if(particleBuffer[id.x].position.x - h < -bounds.x){
+        particleBuffer[id.x].position.x = -bounds.x + h;
         particleBuffer[id.x].velocity.x *= -0.6;
     }
 
-    if(particleBuffer[id.x].position.z + particleSize > bounds.z){
-        particleBuffer[id.x].position.z = bounds.z - particleSize;
+    if(particleBuffer[id.x].position.z + h > bounds.z){
+        particleBuffer[id.x].position.z = bounds.z - h;
         particleBuffer[id.x].velocity.z *= -0.6;
     }
-    if(particleBuffer[id.x].position.z - particleSize < -bounds.z){
-        particleBuffer[id.x].position.z = -bounds.z + particleSize;
+    if(particleBuffer[id.x].position.z - h < -bounds.z){
+        particleBuffer[id.x].position.z = -bounds.z + h;
         particleBuffer[id.x].velocity.z *= -0.6;
     }
 
-    if (particleBuffer[id.x].position.y - particleSize < 0){
-        particleBuffer[id.x].position.y = particleSize;
+    if (particleBuffer[id.x].position.y - h < 0){
+        particleBuffer[id.x].position.y = h;
         particleBuffer[id.x].velocity.y *= -0.8;
     }
 
-    if(dot(planeNormal, (planePoint - particleBuffer[id.x].position)) < 0.0f){
-        //Set particle position to a point that is projected on the plane and invert(?) the velocity.
-        particleBuffer[id.x].position = particleBuffer[id.x].position - distance(particleBuffer[id.x].position, planePoint) * planeNormal;
-        // particleBuffer[id.x].velocity *= reflect(particleBuffer[id.x].velocity, planeNormal) * 0.8f;
-    }
+    // if(dot(planeNormal, (planePoint - particleBuffer[id.x].position)) < 0.0f){
+    //     //Set particle position to a point that is projected on the plane and invert(?) the velocity.
+    //     particleBuffer[id.x].position = particleBuffer[id.x].position - distance(particleBuffer[id.x].position, planePoint) * planeNormal;
+    //     // particleBuffer[id.x].velocity *= reflect(particleBuffer[id.x].velocity, planeNormal) * 0.8f;
+    // }
 
     particleBuffer[id.x].forces = float3(0,0,0);
 }
