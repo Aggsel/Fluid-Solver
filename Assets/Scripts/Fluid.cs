@@ -14,8 +14,9 @@ public struct particle{
     public Vector3 velocity;
 }
 
-public class ComputeShaderDispatch : MonoBehaviour{
+public class Fluid : MonoBehaviour{
 
+    [SerializeField] private SimulationSettings settings;
     [SerializeField] private ComputeShader shader;
 
     //Buffers to store our particle data.
@@ -35,26 +36,12 @@ public class ComputeShaderDispatch : MonoBehaviour{
     [Range(1, 65534)]
     [SerializeField] private int particleCount = 8192;
 
-    [Header("Bounds")]
-    [SerializeField] private Vector3 emissionBox;
-    [SerializeField] private Vector3 emissionBoxOffset;
-    [SerializeField] private Vector3 bounds;
     private Vector3 actualBounds;
-
-    [Header("Fluid Parameters")]
-    [SerializeField] private float h = 1.0f;
-    [SerializeField] private float gasConstant = 250.0f;
-    [SerializeField] private float restDensity = 1.0f;
-    [SerializeField] private float particleMass = 0.1f;
-    [SerializeField] private float viscosityConstant = 0.018f;
 
     [Header("Simulation Parameters")]
     [SerializeField] private float externalForceMagnitude = 10f;
     private Vector3 externalForcePoint;
-    [SerializeField] private float deltaTime = 0.01f;
     [SerializeField] private Vector3 gravity;
-    [SerializeField] private float damping = 0;
-    [SerializeField] private float clickAndDragForce = 6.0f;
 
     //Buffers that contain data about our particle mesh.
     ComputeBuffer meshTriangles;
@@ -73,13 +60,30 @@ public class ComputeShaderDispatch : MonoBehaviour{
         particles = new particle[particleCount];
 
         for (int i = 0; i < particles.Length; i++){
-            particles[i].position.x = Random.Range(-emissionBox.x, emissionBox.x) + emissionBoxOffset.x;
-            particles[i].position.y = Random.Range(-emissionBox.y, emissionBox.y) + emissionBoxOffset.y;
-            particles[i].position.z = Random.Range(-emissionBox.z, emissionBox.z) + emissionBoxOffset.z;
+            particles[i].position.x = Random.Range(-settings.emissionBox.x, settings.emissionBox.x) + settings.emissionBoxOffset.x;
+            particles[i].position.y = Random.Range(-settings.emissionBox.y, settings.emissionBox.y) + settings.emissionBoxOffset.y;
+            particles[i].position.z = Random.Range(-settings.emissionBox.z, settings.emissionBox.z) + settings.emissionBoxOffset.z;
             particles[i].density = 0.0f;
         }
 
         InitializeBuffers();
+        CopySettingsToShader();
+    }
+
+    public void CopySettingsToShader(){
+        //Initialize fluid specific parameters.
+        shader.SetFloat("h", settings.h);
+        shader.SetFloat("gasConstant", settings.gasConstant);
+        shader.SetFloat("restDensity", settings.restDensity);
+        shader.SetFloat("viscosityConstant", settings.viscosityConstant);
+
+        //Initialize simulation parameters.
+        shader.SetVector("bounds", settings.bounds);
+        shader.SetInt("particleCount", particles.Length);
+        shader.SetFloat("deltaTime", settings.deltaTime);
+        shader.SetFloat("particleMass", settings.particleMass);
+        shader.SetFloat("damping", settings.damping);
+        shader.SetVector("gravity", settings.gravity);
     }
 
     private void InitializeBuffers(){
@@ -98,24 +102,10 @@ public class ComputeShaderDispatch : MonoBehaviour{
         shader.SetBuffer(positionKernel, "particleBuffer", particleBuffer);
         particleMaterial.SetBuffer("particles", particleBuffer);
 
-        //Initialize fluid specific parameters.
-        shader.SetFloat("h", h);
-        shader.SetFloat("gasConstant", gasConstant);
-        shader.SetFloat("restDensity", restDensity);
-        shader.SetFloat("viscosityConstant", viscosityConstant);
-        
-        //Initialize simulation parameters.
-        shader.SetVector("bounds", bounds);
-        shader.SetInt("particleCount", particles.Length);
-        shader.SetFloat("deltaTime", deltaTime);
-        shader.SetFloat("particleMass", particleMass);
-        shader.SetFloat("damping", damping);
-        shader.SetVector("gravity", gravity);
-
         //Precompute the constants in the smoothing kernel functions.
-        shader.SetFloat("poly6Constant", 315 / (64*Mathf.PI*Mathf.Pow(h,9)));
-        shader.SetFloat("spikyConstant", 15 / (Mathf.PI * Mathf.Pow(h, 6)));
-        shader.SetFloat("laplaceConstant", 45 / (Mathf.PI * Mathf.Pow(h, 6)));
+        shader.SetFloat("poly6Constant", 315 / (64*Mathf.PI*Mathf.Pow(settings.h,9)));
+        shader.SetFloat("spikyConstant", 15 / (Mathf.PI * Mathf.Pow(settings.h, 6)));
+        shader.SetFloat("laplaceConstant", 45 / (Mathf.PI * Mathf.Pow(settings.h, 6)));
 
         //Initialize vertex, triangle and normal buffers for our rendering.
         Vector3[] vertices = particleMesh.vertices;
@@ -152,7 +142,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
             shader.SetVector("bounds", new Vector3(300,300,300));
         }
         else{
-            shader.SetVector("bounds", bounds);
+            shader.SetVector("bounds", settings.bounds);
         }
 
         //Handle ability to click and drag particles around the screen.
@@ -162,7 +152,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
             float distance;
             if(raycastPlane.Raycast(ray, out distance)){
                 externalForcePoint = ray.GetPoint(distance);
-                externalForceMagnitude = Input.GetMouseButton(0) ? clickAndDragForce : -clickAndDragForce;
+                externalForceMagnitude = Input.GetMouseButton(0) ? settings.clickAndDragForce : -settings.clickAndDragForce;
 
                 shader.SetVector("externalForcePoint", externalForcePoint);
             }
@@ -180,7 +170,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
         //can directly access the particle positions from the same buffers.
         //https://forum.unity.com/threads/most-efficient-way-to-render-particle-sprites.487496/
         Graphics.DrawProcedural(material: particleMaterial, 
-                                bounds: new Bounds(transform.position, bounds*2), 
+                                bounds: new Bounds(transform.position, settings.bounds*2), 
                                 topology: MeshTopology.Triangles, 
                                 vertexCount:meshTriangles.count, 
                                 instanceCount: particleCount, 
@@ -193,10 +183,13 @@ public class ComputeShaderDispatch : MonoBehaviour{
     }
 
     void OnDrawGizmos(){
+        if(settings == null)
+            return;
+
         Gizmos.color = Color.red;
-        Gizmos.DrawWireCube(transform.position, bounds*2);
+        Gizmos.DrawWireCube(transform.position, settings.bounds*2);
 
         Gizmos.color = Color.blue;
-        Gizmos.DrawWireCube(emissionBoxOffset, emissionBox*2);
+        Gizmos.DrawWireCube(settings.emissionBoxOffset, settings.emissionBox*2);
     }
 }

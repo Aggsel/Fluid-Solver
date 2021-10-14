@@ -25,7 +25,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _ParticleScale: 0.5
+    - _ParticleScale: 1
     m_Colors:
     - _Color: {r: 0.19840974, g: 0.7110715, b: 1.4339623, a: 1}
     - _LightDirection: {r: 1, g: 0.5, b: -0.59, a: 0}
