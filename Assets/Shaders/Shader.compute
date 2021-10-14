@@ -104,7 +104,7 @@ void CalculateAcceleration (uint3 id : SV_DispatchThreadID){
             pressureForce += particleMass * ((particleBuffer[id.x].pressure + otherPressure) / (2 * particleBuffer[id.x].density * otherDensity)) * W * rNorm;
 
             float r3 = r2 * r;
-            W = -(r3 / (2 * h3)) + (r2 / h2) + (h / (2 * r)) - 1; // laplacian smoothing function
+            W = -(r3 / (2 * h3)) + (r2 / h2) + (h / (2 * r)) - 1; //Viscosity smoothing kernel.
             viscosityForce += particleMass * (1.0f / otherDensity) * (otherVelocity - particleBuffer[id.x].velocity) * W * rNorm;
         }
     }
