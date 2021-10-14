@@ -49,11 +49,12 @@ public class ComputeShaderDispatch : MonoBehaviour{
     [SerializeField] private float viscosityConstant = 0.018f;
 
     [Header("Simulation Parameters")]
-    [SerializeField] private float externalForceMagnitude = 10;
+    [SerializeField] private float externalForceMagnitude = 10f;
     private Vector3 externalForcePoint;
     [SerializeField] private float deltaTime = 0.01f;
     [SerializeField] private Vector3 gravity;
-    [SerializeField] private float dampening;
+    [SerializeField] private float damping = 0;
+    [SerializeField] private float clickAndDragForce = 6.0f;
 
     //Buffers that contain data about our particle mesh.
     ComputeBuffer meshTriangles;
@@ -108,7 +109,7 @@ public class ComputeShaderDispatch : MonoBehaviour{
         shader.SetInt("particleCount", particles.Length);
         shader.SetFloat("deltaTime", deltaTime);
         shader.SetFloat("particleMass", particleMass);
-        shader.SetFloat("dampening", dampening);
+        shader.SetFloat("damping", damping);
         shader.SetVector("gravity", gravity);
 
         //Precompute the constants in the smoothing kernel functions.
@@ -155,13 +156,13 @@ public class ComputeShaderDispatch : MonoBehaviour{
         }
 
         //Handle ability to click and drag particles around the screen.
-        if(Input.GetMouseButton(0)){
+        if(Input.GetMouseButton(0) || Input.GetMouseButton(1)){
             Plane raycastPlane = new Plane(-transform.forward, transform.position);
             Ray ray = Camera.main.ViewportPointToRay(Camera.main.ScreenToViewportPoint(Input.mousePosition));
             float distance;
             if(raycastPlane.Raycast(ray, out distance)){
                 externalForcePoint = ray.GetPoint(distance);
-                externalForceMagnitude = 5.0f;
+                externalForceMagnitude = Input.GetMouseButton(0) ? clickAndDragForce : -clickAndDragForce;
 
                 shader.SetVector("externalForcePoint", externalForcePoint);
             }
@@ -170,7 +171,6 @@ public class ComputeShaderDispatch : MonoBehaviour{
             externalForceMagnitude = 0.0f;
         }
         shader.SetFloat("externalForceMagnitude", externalForceMagnitude);
-
         //Dispatch shaders, updating the particle positions in the buffers.
         shader.Dispatch(pressureKernel, particleCount/1024, 1, 1);
         shader.Dispatch(forcesKernel, particleCount/1024, 1, 1);
@@ -184,8 +184,8 @@ public class ComputeShaderDispatch : MonoBehaviour{
                                 topology: MeshTopology.Triangles, 
                                 vertexCount:meshTriangles.count, 
                                 instanceCount: particleCount, 
-                                castShadows: ShadowCastingMode.Off, 
-                                receiveShadows: false);
+                                castShadows: ShadowCastingMode.On, 
+                                receiveShadows: true);
     }
 
     void OnDestroy(){

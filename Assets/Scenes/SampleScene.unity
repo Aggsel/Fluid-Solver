@@ -283,6 +283,7 @@ GameObject:
   m_Component:
   - component: {fileID: 463910181}
   - component: {fileID: 463910182}
+  - component: {fileID: 463910183}
   m_Layer: 0
   m_Name: CameraParent
   m_TagString: Untagged
@@ -319,6 +320,27 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rotationSpeed: 60
+--- !u!114 &463910183
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 463910180}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73d1c88380ff70841a7203a1be12e261, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  colors:
+  - {r: 0.9716981, g: 0.617589, b: 0.31778798, a: 0}
+  - {r: 0.8396226, g: 0.48845965, b: 0.48845965, a: 0}
+  - {r: 0.7830189, g: 0.5293995, b: 0.76378125, a: 0}
+  - {r: 0.46704042, g: 0.4774453, b: 0.8584906, a: 0}
+  - {r: 0.45579678, g: 0.8360845, b: 0.8679245, a: 0}
+  - {r: 0.42808822, g: 0.735849, b: 0.43113786, a: 0}
+  - {r: 0.6321168, g: 0.8396226, b: 0.38548708, a: 0}
+  lerpSpeed: 15
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -670,7 +692,8 @@ MonoBehaviour:
   externalForceMagnitude: 5
   deltaTime: 0.01
   gravity: {x: 0, y: -10, z: 0}
-  dampening: 0
+  damping: 0
+  clickAndDragForce: 6
 --- !u!4 &1258269182
 Transform:
   m_ObjectHideFlags: 0

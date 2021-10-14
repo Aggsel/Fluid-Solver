@@ -3,8 +3,6 @@
 #pragma kernel CalculateForces
 #pragma kernel UpdateParticlePositions
 
-#define PI 3.14159265
-
 //Shaders really like structures divisible by 128 bits, that's why our struct has dummy variables.
 //https://developer.nvidia.com/content/understanding-structured-buffer-performance
 //https://developer.nvidia.com/content/redundancy-and-latency-structured-buffer-use
@@ -36,22 +34,21 @@ uniform float poly6Constant;
 uniform float spikyConstant;
 uniform float laplaceConstant;
 uniform float3 gravity;
-uniform float dampening;
+uniform float damping;
 
+//TODO: If no further collision detection is implemented, remove these.
 uniform float3 planeNormal;
 uniform float3 planePoint;
 
 float Poly6Kernel(float rSqrd, float h){
     const float hSqrd = h * h;
-    if(rSqrd < hSqrd)
-        return particleMass * poly6Constant * pow(hSqrd - rSqrd, 3);
-    return 0;
+
+    //This might be a bit superfluous. These two step functions are used to guarantee
+    //the 0 <= r && r <= h condition from Müller, M., Charypar, D,. & Gross, M. (2003) Eq. 20
+    //without using branching.
+    return particleMass * poly6Constant * pow(hSqrd - rSqrd, 3) * step(0, rSqrd) * step(rSqrd, hSqrd);
 }
 
-//because forces are being modified in parallel by different threads. 
-//So, we need to use protected writing operation to avoid data loss. 
-//But protected data access functions only work for int and uint values.
-// https://www.reddit.com/r/Unity3D/comments/7ppldz/physics_simulation_on_gpu_with_compute_shader_in/
 [numthreads(1024,1,1)]
 void CalculatePressure (uint3 id : SV_DispatchThreadID){
     //Poly6 smoothing kernel to approximate fluid density. Eq. 3
@@ -60,11 +57,10 @@ void CalculatePressure (uint3 id : SV_DispatchThreadID){
     float density = 0;
 
     for(uint i = 0; i < particleCount; i++){
-        float3 otherPos = particleBuffer[i].position;
-        float3 diff = otherPos - currentPos;
-        float rSqrd = dot(diff, diff);
-        if(rSqrd < h*h)
-            density += Poly6Kernel(rSqrd, h);
+        const float3 otherPos = particleBuffer[i].position;
+        const float3 diff = otherPos - currentPos;
+        const float rSqrd = dot(diff, diff);
+        density += Poly6Kernel(rSqrd, h);
     }
 
     //The pressure at the point of the particle can be calculated using Eq. 12 (Müller M, Charypar D & Gross M. 2003).
@@ -77,36 +73,36 @@ void CalculateForces (uint3 id : SV_DispatchThreadID){
     const float h2 = h * h;
     const float h3 = h * h * h;
 
-    float3 currentPos = particleBuffer[id.x].position;
+    const float3 currentPos = particleBuffer[id.x].position;
     float3 pressureForce = float3(0,0,0);
     float3 viscosityForce = float3(0,0,0);
 
-
     //TODO: Seperate out the kernelsmoothing to a function.
+    //There's also a lot of performance to be found here if we only check the neighboring particles.
+    //Right now this is more or less O(n^2)
     for (uint i = 0; i < particleCount; i++){
         if(i == id.x)   //Make sure we don't calculate forces for between self.
             continue;
 
-        float3 otherPos = particleBuffer[i].position;
+        const float3 otherPos = particleBuffer[i].position;
 
-        float3 diff = currentPos - otherPos;
-        float r2 = dot(diff, diff);
-        float r = sqrt(r2);
+        const float3 diff = currentPos - otherPos;
+        const float r2 = dot(diff, diff);
+        const float r = sqrt(r2);
 
         if (0 < r && r < h){
-            float3 otherVelocity = particleBuffer[i].velocity;
-            float otherDensity = particleBuffer[i].density;
-            float otherPressure = particleBuffer[i].pressure;
+            const float3 otherVelocity = particleBuffer[i].velocity;
+            const float otherDensity = particleBuffer[i].density;
+            const float otherPressure = particleBuffer[i].pressure;
 
-            float W_spiky = spikyConstant * (h - r) * (h - r) * (h - r); // spiky kernel smoothing function (Eq. 21)
-            pressureForce += particleMass * ((particleBuffer[id.x].pressure + otherPressure) / (2 * otherDensity)) * W_spiky * normalize(diff);
+            const float W_spiky = spikyConstant * (h - r) * (h - r) * (h - r); // Spiky kernel smoothing function (Eq. 21).
+            pressureForce -= particleMass * ((particleBuffer[id.x].pressure + otherPressure) / (2 * otherDensity)) * W_spiky * normalize(diff);
 
-            //Calculating the viscosity force (Eq. 14)
+            //Calculating the viscosity force (Eq. 14).
             viscosityForce += particleMass * (otherVelocity - particleBuffer[id.x].velocity) / otherDensity * laplaceConstant * (h-r);
         }
     }
 
-    pressureForce *= -1;
     viscosityForce *= viscosityConstant;
     particleBuffer[id.x].forces += (pressureForce + viscosityForce) / particleBuffer[id.x].density;
 }
@@ -122,7 +118,7 @@ void UpdateParticlePositions (uint3 id : SV_DispatchThreadID){
 
     //Semi-implicit Euler integration.
     particleBuffer[id.x].velocity += particleBuffer[id.x].forces * deltaTime;
-    particleBuffer[id.x].velocity *= (1 - dampening);
+    particleBuffer[id.x].velocity *= (1 - damping);   //If implemented properly, no additional damping should be necessary to keep the sim stable.
     particleBuffer[id.x].position += particleBuffer[id.x].velocity * deltaTime;
 
     //As a result of our bounding box being axis aligned, particle/bound collision is trivial to detect and correct.
@@ -148,12 +144,6 @@ void UpdateParticlePositions (uint3 id : SV_DispatchThreadID){
         particleBuffer[id.x].position.y = h;
         particleBuffer[id.x].velocity.y *= -0.8;
     }
-
-    // if(dot(planeNormal, (planePoint - particleBuffer[id.x].position)) < 0.0f){
-    //     //Set particle position to a point that is projected on the plane and invert(?) the velocity.
-    //     particleBuffer[id.x].position = particleBuffer[id.x].position - distance(particleBuffer[id.x].position, planePoint) * planeNormal;
-    //     // particleBuffer[id.x].velocity *= reflect(particleBuffer[id.x].velocity, planeNormal) * 0.8f;
-    // }
 
     particleBuffer[id.x].forces = float3(0,0,0);
 }
