@@ -16,8 +16,9 @@ public struct particle{
 
 public class Fluid : MonoBehaviour{
 
-    [SerializeField] private SimulationSettings settings;
+    [SerializeField] public SimulationSettings settings;
     [SerializeField] private ComputeShader shader;
+    private Camera mainCamera;
 
     //Buffers to store our particle data.
     [SerializeField] private particle[] particles;
@@ -48,21 +49,26 @@ public class Fluid : MonoBehaviour{
     ComputeBuffer meshVertices;
     ComputeBuffer meshNormals;
 
-    void Start(){
+    void Awake(){
+        mainCamera = Camera.main;
         Restart();
     }
 
-    void Restart(){
+    public void Restart(){
         if(shader == null){
             Debug.LogError("Please attach a compute shader.", this);
             this.enabled = false;
         }
         particles = new particle[particleCount];
 
+        Vector3 tempEmissionBox = new Vector3(  Mathf.Min(settings.emissionBox.x, settings.bounds.x),
+                                                Mathf.Min(settings.emissionBox.y, settings.bounds.y),
+                                                Mathf.Min(settings.emissionBox.z, settings.bounds.z));
+
         for (int i = 0; i < particles.Length; i++){
-            particles[i].position.x = Random.Range(-settings.emissionBox.x, settings.emissionBox.x) + settings.emissionBoxOffset.x;
-            particles[i].position.y = Random.Range(-settings.emissionBox.y, settings.emissionBox.y) + settings.emissionBoxOffset.y;
-            particles[i].position.z = Random.Range(-settings.emissionBox.z, settings.emissionBox.z) + settings.emissionBoxOffset.z;
+            particles[i].position.x = Random.Range(-tempEmissionBox.x, tempEmissionBox.x) + settings.emissionBoxOffset.x;
+            particles[i].position.y = Random.Range(-tempEmissionBox.y, tempEmissionBox.y) + settings.emissionBoxOffset.y;
+            particles[i].position.z = Random.Range(-tempEmissionBox.z, tempEmissionBox.z) + settings.emissionBoxOffset.z;
             particles[i].density = 0.0f;
         }
 
@@ -147,8 +153,10 @@ public class Fluid : MonoBehaviour{
 
         //Handle ability to click and drag particles around the screen.
         if(Input.GetMouseButton(0) || Input.GetMouseButton(1)){
-            Plane raycastPlane = new Plane(-transform.forward, transform.position);
-            Ray ray = Camera.main.ViewportPointToRay(Camera.main.ScreenToViewportPoint(Input.mousePosition));
+            Vector3 forward = mainCamera.transform.forward;
+            forward.y = 0;
+            Plane raycastPlane = new Plane(forward.normalized, Vector3.zero);
+            Ray ray = mainCamera.ViewportPointToRay(mainCamera.ScreenToViewportPoint(Input.mousePosition));
             float distance;
             if(raycastPlane.Raycast(ray, out distance)){
                 externalForcePoint = ray.GetPoint(distance);
@@ -184,6 +192,14 @@ public class Fluid : MonoBehaviour{
     public void ChangeSimSettings(SimulationSettings newSettings){
         this.settings = newSettings;
         CopySettingsToShader();
+    }
+
+    public void SetShaderFloat(string variableName, float value){
+        shader.SetFloat(variableName, value);
+    }
+
+    public void SetShaderVector(string variableName, Vector3 value){
+        shader.SetVector(variableName, value);
     }
 
     void OnDestroy(){

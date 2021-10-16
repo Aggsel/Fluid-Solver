@@ -11,14 +11,21 @@ public class SliderWithTextInput : Slider
     [SerializeField] private TextMeshProUGUI displayValue;
     [SerializeField] private TMP_InputField inputField;
     private UnityAction<string> onTextInputChange;
+    private UnityAction<float> onSliderValueChange;
     private float defaultMin, defaultMax;
+
+    private string valueFormat = "0.00";
 
     protected override void Start(){
         base.Start();
         UpdateHandleText();
         UpdateInputField();
+
         onTextInputChange += OnTextInputChange;
         inputField.onEndEdit.AddListener(onTextInputChange);
+        onSliderValueChange += OnSliderValueChange;
+        onValueChanged.AddListener(onSliderValueChange);
+
         defaultMin = minValue;
         defaultMax = maxValue;
     }
@@ -40,12 +47,12 @@ public class SliderWithTextInput : Slider
 
     private void UpdateHandleText(){
         if(displayValue != null)
-            displayValue.text = this.value.ToString("0.00");
+            displayValue.text = this.value.ToString(valueFormat);
     }
 
     private void UpdateInputField(){
         if(inputField != null)
-            inputField.text = this.value.ToString("0.00");
+            inputField.text = this.value.ToString(valueFormat);
     }
 
     private void OnTextInputChange(string inputFieldText){
@@ -54,5 +61,9 @@ public class SliderWithTextInput : Slider
         maxValue = Mathf.Max(defaultMax, newValue);
         this.value = newValue;
         UpdateHandleText();
+    }
+
+    private void OnSliderValueChange(float newValue){
+        UpdateInputField();
     }
 }
