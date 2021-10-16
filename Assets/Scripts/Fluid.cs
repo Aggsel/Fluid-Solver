@@ -162,9 +162,12 @@ public class Fluid : MonoBehaviour{
         }
         shader.SetFloat("externalForceMagnitude", externalForceMagnitude);
         //Dispatch shaders, updating the particle positions in the buffers.
-        shader.Dispatch(pressureKernel, particleCount/1024, 1, 1);
-        shader.Dispatch(forcesKernel, particleCount/1024, 1, 1);
-        shader.Dispatch(positionKernel, particleCount/1024, 1, 1);
+
+        for (int i = 0; i < settings.substeps; i++){
+            shader.Dispatch(pressureKernel, particleCount/1024, 1, 1);
+            shader.Dispatch(forcesKernel, particleCount/1024, 1, 1);
+            shader.Dispatch(positionKernel, particleCount/1024, 1, 1);
+        }
         
         //Instead of passing the results from our compute shaders back to the CPU when done, our material
         //can directly access the particle positions from the same buffers.
@@ -176,6 +179,11 @@ public class Fluid : MonoBehaviour{
                                 instanceCount: particleCount, 
                                 castShadows: ShadowCastingMode.On, 
                                 receiveShadows: true);
+    }
+
+    public void ChangeSimSettings(SimulationSettings newSettings){
+        this.settings = newSettings;
+        CopySettingsToShader();
     }
 
     void OnDestroy(){

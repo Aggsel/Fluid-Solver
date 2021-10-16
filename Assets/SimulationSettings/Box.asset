@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8789b5ba3092a804691995b71d39d324, type: 3}
+  m_Name: Box
+  m_EditorClassIdentifier: 
+  emissionBox: {x: 6, y: 6, z: 6}
+  emissionBoxOffset: {x: 0, y: 8, z: 0}
+  bounds: {x: 7, y: 5, z: 7}
+  h: 0.4
+  gasConstant: 16
+  restDensity: 1000
+  particleMass: 0.1
+  viscosityConstant: 0.3
+  clickAndDragForce: 6
+  deltaTime: 0.01
+  gravity: {x: 0, y: -10, z: 0}
+  damping: 0
+  substeps: 3
