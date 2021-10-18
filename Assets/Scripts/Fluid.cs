@@ -35,7 +35,7 @@ public class Fluid : MonoBehaviour{
     [SerializeField] Mesh particleMesh;
 
     [Range(1, 65534)]
-    [SerializeField] private int particleCount = 8192;
+    [SerializeField] public int particleCount = 8192;
 
     private Vector3 actualBounds;
 
@@ -130,7 +130,7 @@ public class Fluid : MonoBehaviour{
         particleMaterial.SetBuffer("normals", meshNormals);
     }
 
-    private void DisposeBuffers(){
+    public void DisposeBuffers(){
         particleBuffer.Dispose();
         meshTriangles.Dispose();
         meshVertices.Dispose();
@@ -185,8 +185,8 @@ public class Fluid : MonoBehaviour{
                                 topology: MeshTopology.Triangles, 
                                 vertexCount:meshTriangles.count, 
                                 instanceCount: particleCount, 
-                                castShadows: ShadowCastingMode.On, 
-                                receiveShadows: true);
+                                castShadows: ShadowCastingMode.Off, 
+                                receiveShadows: false);
     }
 
     public void ChangeSimSettings(SimulationSettings newSettings){

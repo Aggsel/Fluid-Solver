@@ -19,7 +19,7 @@ MonoBehaviour:
   gasConstant: 16
   restDensity: 1000
   particleMass: 0.1
-  viscosityConstant: 0.3
+  viscosityConstant: 0.8
   clickAndDragForce: 6
   deltaTime: 0.01
   gravity: {x: 0, y: -10, z: 0}
