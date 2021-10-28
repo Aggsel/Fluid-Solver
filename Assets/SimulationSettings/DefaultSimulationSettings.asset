@@ -20,7 +20,8 @@ MonoBehaviour:
   restDensity: 1000
   particleMass: 0.1
   viscosityConstant: 1
-  clickAndDragForce: 6
+  clickAndDragForce: 15
   deltaTime: 0.01
   gravity: {x: 0, y: -10, z: 0}
   damping: 0
+  substeps: 1

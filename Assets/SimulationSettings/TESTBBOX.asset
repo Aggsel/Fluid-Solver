@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8789b5ba3092a804691995b71d39d324, type: 3}
-  m_Name: Box
+  m_Name: TESTBBOX
   m_EditorClassIdentifier: 
   emissionBox: {x: 6, y: 6, z: 6}
   emissionBoxOffset: {x: 0, y: 8, z: 0}
   bounds: {x: 7, y: 5, z: 7}
   h: 0.4
-  gasConstant: 16
+  gasConstant: 60
   restDensity: 1000
-  particleMass: 0.1
+  particleMass: 1
   viscosityConstant: 0.8
   clickAndDragForce: 15
   deltaTime: 0.01

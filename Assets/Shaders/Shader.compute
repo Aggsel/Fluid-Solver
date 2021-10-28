@@ -16,6 +16,9 @@ struct particle{
     float pressure;
     float3 forces;
     float3 velocity;
+    float3 pad0;
+    float pad1;
+    float pad2;
 };
 
 // RandomWrite Structured Buffer
@@ -34,19 +37,22 @@ uniform float poly6Constant;
 uniform float spikyConstant;
 uniform float laplaceConstant;
 uniform float3 gravity;
-uniform float damping;
-
-//TODO: If no further collision detection is implemented, remove these.
-uniform float3 planeNormal;
-uniform float3 planePoint;
 
 float Poly6Kernel(float rSqrd, float h){
     const float hSqrd = h * h;
-
-    //This might be a bit superfluous. These two step functions are used to guarantee
-    //the 0 <= r && r <= h condition from Müller, M., Charypar, D,. & Gross, M. (2003) Eq. 20
-    //without using branching.
+    //0 <= r && r <= h condition from Müller, M., Charypar, D,. & Gross, M. (2003) Eq. 20 enforced by step functions.
     return particleMass * poly6Constant * pow(hSqrd - rSqrd, 3) * step(0, rSqrd) * step(rSqrd, hSqrd);
+}
+
+// Spiky kernel smoothing function (Eq. 21).
+float SpikyKernel(float r, float h){
+    float hr = h - r;
+    return spikyConstant * hr * hr * hr * step(0, r) * step(r, h);
+}
+
+// Laplacian of the viscosity kernel (Eq. 22)
+float ViscosityKernel(float r, float h){
+    return laplaceConstant * (h-r) * step(0, r) * step(r, h);
 }
 
 [numthreads(1024,1,1)]
@@ -59,8 +65,7 @@ void CalculatePressure (uint3 id : SV_DispatchThreadID){
     for(uint i = 0; i < particleCount; i++){
         const float3 otherPos = particleBuffer[i].position;
         const float3 diff = otherPos - currentPos;
-        const float rSqrd = dot(diff, diff);
-        density += Poly6Kernel(rSqrd, h);
+        density += Poly6Kernel(dot(diff, diff), h);
     }
 
     //The pressure at the point of the particle can be calculated using Eq. 12 (Müller M, Charypar D & Gross M. 2003).
@@ -77,72 +82,62 @@ void CalculateForces (uint3 id : SV_DispatchThreadID){
     float3 pressureForce = float3(0,0,0);
     float3 viscosityForce = float3(0,0,0);
 
-    //TODO: Seperate out the kernelsmoothing to a function.
     //There's also a lot of performance to be found here if we only check the neighboring particles.
     //Right now this is more or less O(n^2)
     for (uint i = 0; i < particleCount; i++){
-        if(i == id.x)   //Make sure we don't calculate forces for between self.
+        if(i == id.x)
             continue;
 
         const float3 otherPos = particleBuffer[i].position;
-
         const float3 diff = currentPos - otherPos;
         const float r2 = dot(diff, diff);
-        const float r = sqrt(r2);
+        const float r = length(diff);
+        const float otherDensity = particleBuffer[i].density;
 
-        if (0 < r && r < h){
-            const float3 otherVelocity = particleBuffer[i].velocity;
-            const float otherDensity = particleBuffer[i].density;
-            const float otherPressure = particleBuffer[i].pressure;
-
-            const float W_spiky = spikyConstant * (h - r) * (h - r) * (h - r); // Spiky kernel smoothing function (Eq. 21).
-            pressureForce -= particleMass * ((particleBuffer[id.x].pressure + otherPressure) / (2 * otherDensity)) * W_spiky * normalize(diff);
-
-            //Calculating the viscosity force (Eq. 14).
-            viscosityForce += particleMass * (otherVelocity - particleBuffer[id.x].velocity) / otherDensity * laplaceConstant * (h-r);
-        }
+        //Calculate pressure force magnitude (Eq. 10), weighted by the spiky kernel. Force direcion by normalized diff.
+        pressureForce -= particleMass * ((particleBuffer[id.x].pressure + particleBuffer[i].pressure) / (2 * otherDensity)) * SpikyKernel(r, h) * normalize(diff);
+        //Calculating the viscosity force (Eq. 14), weighted by the laplacian of the viscosity kernel.
+        viscosityForce += particleMass * (particleBuffer[i].velocity - particleBuffer[id.x].velocity) / otherDensity * ViscosityKernel(r, h);
     }
-
     viscosityForce *= viscosityConstant;
-    particleBuffer[id.x].forces += (pressureForce + viscosityForce) / particleBuffer[id.x].density;
+    //Calculate resulting force.
+    particleBuffer[id.x].forces += pressureForce + viscosityForce + gravity;
+
+    //Include force towards mouse cursor if clicked.
+    const float3 diff = externalForcePoint - particleBuffer[id.x].position;
+    const float rSqrd = dot(diff, diff);
+    //Using smoothstep to smoothly reduce the force acting on each particle as a function of the distance between the particle and the cursor.
+    particleBuffer[id.x].forces += (1.f-smoothstep(20.0f, 30.0f, rSqrd)) * (externalForcePoint - particleBuffer[id.x].position) * externalForceMagnitude;
 }
 
 [numthreads(1024,1,1)]
 void UpdateParticlePositions (uint3 id : SV_DispatchThreadID){
-    particleBuffer[id.x].forces += gravity;
-
-    float3 diff = externalForcePoint - particleBuffer[id.x].position;
-    float rSqrd = dot(diff, diff);
-    //Using smoothstep to smoothly reduce the force acting on each particle as a function of the distance between the particle and the cursor.
-    particleBuffer[id.x].forces += (1.f-smoothstep(20.0f, 30.0f, rSqrd)) * (externalForcePoint - particleBuffer[id.x].position) * externalForceMagnitude;
-
     //Semi-implicit Euler integration.
-    particleBuffer[id.x].velocity += particleBuffer[id.x].forces * deltaTime;
-    particleBuffer[id.x].velocity *= (1 - damping);   //If implemented properly, no additional damping should be necessary to keep the sim stable.
+    particleBuffer[id.x].velocity += (particleBuffer[id.x].forces / particleBuffer[id.x].density) * deltaTime;
     particleBuffer[id.x].position += particleBuffer[id.x].velocity * deltaTime;
 
     //As a result of our bounding box being axis aligned, particle/bound collision is trivial to detect and correct.
     if(particleBuffer[id.x].position.x + h > bounds.x){
         particleBuffer[id.x].position.x = bounds.x - h;
-        particleBuffer[id.x].velocity.x *= -0.6;
+        particleBuffer[id.x].velocity.x *= -0.3;
     }
     if(particleBuffer[id.x].position.x - h < -bounds.x){
         particleBuffer[id.x].position.x = -bounds.x + h;
-        particleBuffer[id.x].velocity.x *= -0.6;
+        particleBuffer[id.x].velocity.x *= -0.3;
     }
 
     if(particleBuffer[id.x].position.z + h > bounds.z){
         particleBuffer[id.x].position.z = bounds.z - h;
-        particleBuffer[id.x].velocity.z *= -0.6;
+        particleBuffer[id.x].velocity.z *= -0.3;
     }
     if(particleBuffer[id.x].position.z - h < -bounds.z){
         particleBuffer[id.x].position.z = -bounds.z + h;
-        particleBuffer[id.x].velocity.z *= -0.6;
+        particleBuffer[id.x].velocity.z *= -0.3;
     }
 
     if (particleBuffer[id.x].position.y - h < 0){
         particleBuffer[id.x].position.y = h;
-        particleBuffer[id.x].velocity.y *= -0.8;
+        particleBuffer[id.x].velocity.y *= -0.3;
     }
 
     particleBuffer[id.x].forces = float3(0,0,0);

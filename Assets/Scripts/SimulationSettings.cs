@@ -21,7 +21,6 @@ public class SimulationSettings : ScriptableObject
     public float clickAndDragForce = 5f;
     public float deltaTime = 0.01f;
     [SerializeField] public Vector3 gravity;
-    public float damping = 0;
     public int substeps = 1;
 
 }

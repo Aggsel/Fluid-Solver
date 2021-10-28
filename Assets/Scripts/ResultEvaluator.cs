@@ -20,6 +20,7 @@ public class ResultEvaluator : MonoBehaviour
     [SerializeField] private Fluid fluid;
 
     void Start(){
+        Debug.Log(SystemInfo.graphicsDeviceVersion);
         path = $"{Application.dataPath}/{filename}";
         if (!File.Exists(path))
             File.Delete(path);

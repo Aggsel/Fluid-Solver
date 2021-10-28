@@ -29,6 +29,9 @@ Shader "Unlit/ParticleShader"
                 float pressure;
                 float3 forces;
                 float3 velocity;
+                float3 pad0;
+                float pad1;
+                float pad2;
             };
 
             struct v2f {
@@ -43,16 +46,13 @@ Shader "Unlit/ParticleShader"
             StructuredBuffer<float3> vertices;
             StructuredBuffer<float3> normals;
 
-            //the vertex shader function
             v2f vert(uint vertex_id: SV_VertexID, uint instance_id: SV_InstanceID){
                 v2f o;
                 int positionIndex = triangles[vertex_id];
                 float3 position = vertices[positionIndex] * _ParticleScale;
-                //add sphere position
                 position += particles[instance_id].position;
-                //convert the vertex position from world space to clip space
                 o.pos = mul(UNITY_MATRIX_VP, float4(position, 1));
-                o.normal = float4(normals[positionIndex], 1);
+                o.normal = normals[positionIndex];
 
                 float3 velocity = particles[instance_id].velocity;
                 float3 speed = float3(abs(velocity.x), abs(velocity.y), abs(velocity.z)) / 10;
@@ -60,15 +60,13 @@ Shader "Unlit/ParticleShader"
                 return o;
             }
 
-            //the fragment shader function
             fixed4 frag(v2f i) : SV_TARGET{
-                //return the final color to be drawn on screen
-                // float4 finalColor = dot(normalize(i.normal), normalize(_LightDirection)) * i.color;
+                // return dot(normalize(i.normal), normalize(_LightDirection)) * i.color;
                 return i.color;
             }
 
             ENDCG
-            }   
+            }
         }
         Fallback "VertexLit"
 }

@@ -4,18 +4,20 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 public struct particle{
-    //If changed, remember to update the shader, the buffer size
-    //and keep it divisible by 128.
-    //https://developer.nvidia.com/content/understanding-structured-buffer-performance
     public Vector3 position;
     public float density;
     public float pressure;
     public Vector3 forces;
     public Vector3 velocity;
+    //https://developer.nvidia.com/content/understanding-structured-buffer-performance
+    //Testing with and without padding the struct were done. Using padding resulted in a ~5% performance increase.
+    //Will likely vary between different hardware configurations.
+    public Vector3 pad0;
+    public float pad1;
+    public float pad2;
 }
 
 public class Fluid : MonoBehaviour{
-
     [SerializeField] public SimulationSettings settings;
     [SerializeField] private ComputeShader shader;
     private Camera mainCamera;
@@ -27,8 +29,6 @@ public class Fluid : MonoBehaviour{
     private int pressureKernel;
     private int forcesKernel;
     private int positionKernel;
-
-    // [SerializeField] private GameObject obstacle;
 
     [Header("Particles")]
     [SerializeField] Material particleMaterial;
@@ -88,7 +88,6 @@ public class Fluid : MonoBehaviour{
         shader.SetInt("particleCount", particles.Length);
         shader.SetFloat("deltaTime", settings.deltaTime);
         shader.SetFloat("particleMass", settings.particleMass);
-        shader.SetFloat("damping", settings.damping);
         shader.SetVector("gravity", settings.gravity);
     }
 
@@ -98,8 +97,8 @@ public class Fluid : MonoBehaviour{
         positionKernel = shader.FindKernel("UpdateParticlePositions");
 
         //ComputeBuffer(count, stride) (number of elements, size of one element)
-        //Here we're creating a compute buffer with particles length, each particle struct contains 12 floats.
-        particleBuffer = new ComputeBuffer(particles.Length, sizeof(float)*11);
+        //Here we're creating a compute buffer with particles length, each particle struct contains 16 floats.
+        particleBuffer = new ComputeBuffer(particles.Length, sizeof(float)*16);
         particleBuffer.SetData(particles);
 
         //Make sure all 3 shader kernels and the material can access the particle buffer.
@@ -144,12 +143,7 @@ public class Fluid : MonoBehaviour{
             return;
         }
 
-        if(Input.GetKey(KeyCode.B)){
-            shader.SetVector("bounds", new Vector3(300,300,300));
-        }
-        else{
-            shader.SetVector("bounds", settings.bounds);
-        }
+        shader.SetVector("bounds",Input.GetKey(KeyCode.B) ? new Vector3(300,300,300) : settings.bounds);
 
         //Handle ability to click and drag particles around the screen.
         if(Input.GetMouseButton(0) || Input.GetMouseButton(1)){
