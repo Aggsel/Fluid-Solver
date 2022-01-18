@@ -15,7 +15,7 @@ public class SimulationSettings : ScriptableObject
     public float gasConstant = 16f;
     public float restDensity = 1000f;
     public float particleMass = 0.1f;
-    public float viscosityConstant = 2f;
+    public float viscosityCoefficient = 2f;
 
     [Header("Simulation Parameters")]
     public float clickAndDragForce = 5f;

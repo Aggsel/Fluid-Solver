@@ -45,7 +45,7 @@ public class UIController : MonoBehaviour
     }
 
     private void SetUIElementsFromSimSettings(){
-        viscositySlider.value = settingsCopy.viscosityConstant;
+        viscositySlider.value = settingsCopy.viscosityCoefficient;
         gravitySlider.value = settingsCopy.gravity.y;
         boundsX.value = settingsCopy.bounds.x;
         boundsZ.value = settingsCopy.bounds.z;
@@ -53,8 +53,8 @@ public class UIController : MonoBehaviour
     }
 
     private void UpdateViscosity(float value){
-        settingsCopy.viscosityConstant = value;
-        fluid.SetShaderFloat("viscosityConstant", settingsCopy.viscosityConstant);
+        settingsCopy.viscosityCoefficient = value;
+        fluid.SetShaderFloat("viscosityCoefficient", settingsCopy.viscosityCoefficient);
     }
 
     private void UpdateGravity(float value){

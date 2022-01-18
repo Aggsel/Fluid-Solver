@@ -81,13 +81,13 @@ public class Fluid : MonoBehaviour{
         shader.SetFloat("h", settings.h);
         shader.SetFloat("gasConstant", settings.gasConstant);
         shader.SetFloat("restDensity", settings.restDensity);
-        shader.SetFloat("viscosityConstant", settings.viscosityConstant);
+        shader.SetFloat("viscosityCoefficient", settings.viscosityCoefficient);
+        shader.SetFloat("particleMass", settings.particleMass);
 
         //Initialize simulation parameters.
         shader.SetVector("bounds", settings.bounds);
         shader.SetInt("particleCount", particles.Length);
         shader.SetFloat("deltaTime", settings.deltaTime);
-        shader.SetFloat("particleMass", settings.particleMass);
         shader.SetVector("gravity", settings.gravity);
     }
 
@@ -110,7 +110,7 @@ public class Fluid : MonoBehaviour{
         //Precompute the constants in the smoothing kernel functions.
         shader.SetFloat("poly6Constant", 315 / (64*Mathf.PI*Mathf.Pow(settings.h,9)));
         shader.SetFloat("spikyConstant", 15 / (Mathf.PI * Mathf.Pow(settings.h, 6)));
-        shader.SetFloat("laplaceConstant", 45 / (Mathf.PI * Mathf.Pow(settings.h, 6)));
+        shader.SetFloat("viscosityConstant", 45 / (Mathf.PI * Mathf.Pow(settings.h, 6)));
 
         //Initialize vertex, triangle and normal buffers for our rendering.
         Vector3[] vertices = particleMesh.vertices;

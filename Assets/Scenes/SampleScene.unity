@@ -3323,7 +3323,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3983704597741970829, guid: f591f9b4b8e080a4f87a19eccb8da998, type: 3}
       propertyPath: m_text
-      value: "Viscosity Constant (\u03BC)"
+      value: "Viscosity Coefficient (\u03BC)"
       objectReference: {fileID: 0}
     - target: {fileID: 3983704598143402601, guid: f591f9b4b8e080a4f87a19eccb8da998, type: 3}
       propertyPath: m_AnchorMax.x

@@ -26,7 +26,7 @@ RWStructuredBuffer<particle> particleBuffer;
 uniform float h;
 uniform float gasConstant;
 uniform float restDensity;
-uniform float viscosityConstant;
+uniform float viscosityCoefficient;
 uniform float deltaTime;
 uniform uint particleCount;
 uniform float3 bounds;
@@ -35,7 +35,7 @@ uniform float externalForceMagnitude;
 uniform float particleMass;
 uniform float poly6Constant;
 uniform float spikyConstant;
-uniform float laplaceConstant;
+uniform float viscosityConstant;
 uniform float3 gravity;
 
 float Poly6Kernel(float rSqrd, float h){
@@ -52,7 +52,7 @@ float SpikyKernel(float r, float h){
 
 // Laplacian of the viscosity kernel (Eq. 22)
 float ViscosityKernel(float r, float h){
-    return laplaceConstant * (h-r) * step(0, r) * step(r, h);
+    return viscosityConstant * (h-r) * step(0, r) * step(r, h);
 }
 
 [numthreads(1024,1,1)]
@@ -99,7 +99,7 @@ void CalculateForces (uint3 id : SV_DispatchThreadID){
         //Calculating the viscosity force (Eq. 14), weighted by the laplacian of the viscosity kernel.
         viscosityForce += particleMass * (particleBuffer[i].velocity - particleBuffer[id.x].velocity) / otherDensity * ViscosityKernel(r, h);
     }
-    viscosityForce *= viscosityConstant;
+    viscosityForce *= viscosityCoefficient;
     //Calculate resulting force.
     particleBuffer[id.x].forces += pressureForce + viscosityForce + gravity;
 
